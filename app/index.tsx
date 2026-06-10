@@ -1,7 +1,7 @@
-import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons"
+import { MaterialIcons } from "@expo/vector-icons"
+import { Image } from "expo-image"
 import { useRouter } from "expo-router"
 import {
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +12,7 @@ import {
 
 const avocadoImage =
   "https://images.unsplash.com/photo-1601039641847-7857b994d704?auto=format&fit=crop&w=1200&q=85"
+const cemsLogo = require("../assets/cemslogo.svg")
 
 const advantages = [
   {
@@ -49,7 +50,7 @@ export default function LandingPage() {
       <View style={styles.headerShell}>
         <View style={styles.header}>
           <View style={styles.brand}>
-            <MaterialCommunityIcons name="leaf" size={22} color="#0f5238" />
+            <Image source={cemsLogo} style={styles.brandLogo} contentFit="contain" />
             <Text style={styles.brandText}>CEMS</Text>
           </View>
 
@@ -83,7 +84,7 @@ export default function LandingPage() {
             <View style={[styles.heroActions, !isTablet && styles.heroActionsMobile]}>
               <Pressable
                 style={[styles.primaryButton, !isTablet && styles.fullButton]}
-                onPress={() => router.push("/(auth)/onboarding")}
+                onPress={() => router.push({ pathname: "/(auth)/onboarding", params: { role: "farmer" } })}
               >
                 <Text style={styles.primaryButtonText}>Join as a Farmer</Text>
               </Pressable>
@@ -98,7 +99,7 @@ export default function LandingPage() {
 
           <View style={styles.heroMediaWrap}>
             <View style={styles.heroImageCard}>
-              <Image source={{ uri: avocadoImage }} style={styles.heroImage} resizeMode="cover" />
+              <Image source={{ uri: avocadoImage }} style={styles.heroImage} contentFit="cover" />
             </View>
             <View style={styles.originBadge}>
               <MaterialIcons name="verified" size={22} color="#0f5238" />
@@ -175,7 +176,7 @@ export default function LandingPage() {
           <View style={[styles.heroActions, !isTablet && styles.heroActionsMobile]}>
             <Pressable
               style={[styles.limeButton, !isTablet && styles.fullButton]}
-              onPress={() => router.push("/(auth)/onboarding")}
+              onPress={() => router.push({ pathname: "/(auth)/onboarding", params: { role: "farmer" } })}
             >
               <Text style={styles.limeButtonText}>Get Started Today</Text>
             </Pressable>
@@ -192,7 +193,7 @@ export default function LandingPage() {
       <View style={styles.footer}>
         <View style={[styles.container, styles.footerInner]}>
           <View style={styles.brand}>
-            <MaterialCommunityIcons name="leaf" size={18} color="#0f5238" />
+            <Image source={cemsLogo} style={styles.footerLogo} contentFit="contain" />
             <Text style={styles.footerBrand}>CEMS KENYA</Text>
           </View>
           <Text style={styles.footerText}>Privacy Policy  |  Terms of Service  |  Export Guidelines</Text>
@@ -250,6 +251,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+  },
+  brandLogo: {
+    width: 22,
+    height: 22,
   },
   brandText: {
     color: "#0f5238",
@@ -652,6 +657,10 @@ const styles = StyleSheet.create({
     color: "#0f5238",
     fontWeight: "900",
     letterSpacing: 1,
+  },
+  footerLogo: {
+    width: 18,
+    height: 18,
   },
   footerText: {
     color: "#605f50",
