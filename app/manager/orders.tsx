@@ -1,134 +1,148 @@
 import { MaterialIcons } from "@expo/vector-icons"
-import { useRouter } from "expo-router"
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native"
-import { ManagerTop, Sidebar } from "./index"
+import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native"
 
-const orders = [
-  ["#EXP-7721", "Premium Hass Batch", "Limuru", "850 KG", "Level 2", "Awaiting Approval"],
-  ["#EXP-7724", "Standard Fuerte Batch", "Gatundu", "1,200 KG", "Level 1", "Awaiting Approval"],
-  ["#EXP-7698", "Organic Hass Batch", "Kiambaa", "2,450 KG", "Level 3", "Scheduled Pickup"],
-  ["#EXP-7655", "Mixed Grade Batch", "Thika", "1,640 KG", "Level 1", "In Quality Check"],
-] as const
+import { ManagerFooter, ManagerLayout } from "../../components/ManagerLayout"
+
+const harvests = [
+  ["Oct 24, 2024", "#HV-8924", "2024 Short Rains", "Avocado (Hass)", "1,250", "Export"],
+  ["Oct 15, 2024", "#HV-8910", "2024 Short Rains", "Avocado (Fuerte)", "840", "Local"],
+  ["Sep 02, 2024", "#HV-8850", "2024 Short Rains", "Macadamia", "320", "Export"],
+  ["Jun 18, 2024", "#HV-8702", "2024 Long Rains", "Avocado (Hass)", "2,100", "Export"],
+  ["May 30, 2024", "#HV-8605", "2024 Long Rains", "Avocado (Fuerte)", "650", "Processing"],
+]
+
+const summaries = [
+  ["Total Yield (YTD)", "5,160 kg", "12% vs last year", "agriculture"],
+  ["Export Grade Quality", "82%", "Premium eligible", "verified"],
+  ["Active Harvests", "2", "Awaiting collection", "local-shipping"],
+]
 
 export default function ManagerOrders() {
-  const router = useRouter()
   const { width } = useWindowDimensions()
-  const isDesktop = width >= 920
+  const desktop = width >= 980
 
   return (
-    <ScrollView style={styles.page} contentContainerStyle={styles.content}>
-      <ManagerTop active="Orders" onDashboard={() => router.push("/manager")} onOrders={() => router.push("/manager/orders")} onPayouts={() => router.push("/manager/payouts")} />
-      <View style={[styles.shell, isDesktop && styles.shellDesktop]}>
-        <Sidebar active="Orders" isDesktop={isDesktop} onDashboard={() => router.push("/manager")} onOrders={() => router.push("/manager/orders")} onPayouts={() => router.push("/manager/payouts")} />
-        <View style={styles.main}>
-          <View style={[styles.header, isDesktop && styles.headerWide]}>
-            <View>
-              <Text style={styles.title}>Export Orders</Text>
-              <Text style={styles.subtitle}>Approve, schedule, and monitor cooperative export batches</Text>
+    <ManagerLayout active="Orders">
+      <ScrollView contentContainerStyle={styles.page}>
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.title}>Harvest History</Text>
+            <Text style={styles.subtitle}>Review past harvests, yields, and grading for registered crops.</Text>
+          </View>
+          <View style={styles.actions}>
+            <View style={styles.secondaryButton}>
+              <MaterialIcons name="file-download" size={17} color="#07543b" />
+              <Text style={styles.secondaryText}>Export</Text>
             </View>
-            <Pressable style={styles.primaryButton}>
-              <MaterialIcons name="add" size={20} color="#ffffff" />
-              <Text style={styles.primaryText}>Create Batch</Text>
-            </Pressable>
-          </View>
-
-          <View style={[styles.filterCard, isDesktop && styles.filterCardWide]}>
-            <View style={styles.searchBox}>
-              <MaterialIcons name="search" size={20} color="#707973" />
-              <TextInput style={styles.searchInput} placeholder="Search by order, origin, or batch..." placeholderTextColor="#707973" />
+            <View style={styles.primaryButton}>
+              <MaterialIcons name="add" size={18} color="#ffffff" />
+              <Text style={styles.primaryText}>New Record</Text>
             </View>
-            <Chip label="All Statuses" />
-            <Chip label="This Week" />
-          </View>
-
-          <View style={[styles.summaryGrid, isDesktop && styles.summaryGridWide]}>
-            <Summary label="Pending Approval" value="18" />
-            <Summary label="Scheduled Pickup" value="98" />
-            <Summary label="Quality Checks" value="34" />
-            <Summary label="Ready to Export" value="56" />
-          </View>
-
-          <View style={styles.orderList}>
-            {orders.map(([id, batch, origin, weight, level, status]) => (
-              <View key={id} style={[styles.orderCard, isDesktop && styles.orderCardWide]}>
-                <View style={styles.orderMain}>
-                  <Text style={styles.orderId}>{id}</Text>
-                  <Text style={styles.orderTitle}>{batch}</Text>
-                  <View style={styles.metaRow}>
-                    <Meta icon="location-on" value={origin} />
-                    <Meta icon="scale" value={weight} />
-                    <Meta icon="workspace-premium" value={level} />
-                  </View>
-                </View>
-                <Status status={status} />
-                <View style={styles.actions}>
-                  <Pressable style={styles.approveButton}><Text style={styles.approveText}>Approve</Text></Pressable>
-                  <Pressable style={styles.outlineButton}><Text style={styles.outlineText}>Inspect</Text></Pressable>
-                </View>
-              </View>
-            ))}
           </View>
         </View>
-      </View>
-    </ScrollView>
+
+        <View style={[styles.filters, desktop && styles.filtersDesktop]}>
+          <View style={styles.search}>
+            <MaterialIcons name="search" size={16} color="#6f7973" />
+            <Text style={styles.placeholder}>Search by Harvest ID or Crop...</Text>
+          </View>
+          <View style={styles.select}><Text style={styles.selectText}>Season</Text><MaterialIcons name="keyboard-arrow-down" size={18} color="#07543b" /></View>
+          <View style={styles.select}><Text style={styles.selectText}>Grade</Text><MaterialIcons name="keyboard-arrow-down" size={18} color="#07543b" /></View>
+          <View style={styles.iconButton}><MaterialIcons name="filter-list" size={18} color="#07543b" /></View>
+        </View>
+
+        <View style={styles.panel}>
+          <View style={styles.tableHead}>
+            <Text style={styles.dateCol}>Date</Text>
+            <Text style={styles.col}>Harvest ID</Text>
+            <Text style={styles.col}>Crop Season</Text>
+            <Text style={styles.col}>Variety</Text>
+            <Text style={styles.smallCol}>Qty (KG)</Text>
+            <Text style={styles.smallCol}>Grade</Text>
+            <Text style={styles.actionCol}>Action</Text>
+          </View>
+          {harvests.map(([date, id, season, variety, qty, grade]) => (
+            <View key={id} style={styles.tableRow}>
+              <Text style={styles.dateCol}>{date}</Text>
+              <Text style={styles.idCol}>{id}</Text>
+              <Text style={styles.col}>{season}</Text>
+              <Text style={styles.col}>{variety}</Text>
+              <Text style={styles.smallCol}>{qty}</Text>
+              <View style={[styles.grade, grade !== "Export" && styles.gradeNeutral]}>
+                <Text style={[styles.gradeText, grade !== "Export" && styles.gradeTextNeutral]}>{grade}</Text>
+              </View>
+              <MaterialIcons name="more-vert" size={20} color="#6f7973" style={styles.actionCol} />
+            </View>
+          ))}
+          <View style={styles.pagination}>
+            <Text style={styles.pageMeta}>Showing 1 to 5 of 42 entries</Text>
+            <View style={styles.pages}>
+              <Text style={styles.pageActive}>1</Text>
+              <Text style={styles.pageNumber}>2</Text>
+              <Text style={styles.pageNumber}>3</Text>
+              <MaterialIcons name="chevron-right" size={18} color="#07543b" />
+            </View>
+          </View>
+        </View>
+
+        <View style={[styles.summaryGrid, desktop && styles.summaryGridDesktop]}>
+          {summaries.map(([label, value, hint, icon]) => (
+            <View key={label} style={styles.summaryCard}>
+              <View style={styles.summaryTop}>
+                <Text style={styles.summaryLabel}>{label}</Text>
+                <MaterialIcons name={icon as never} size={20} color="#0f8a5f" />
+              </View>
+              <Text style={styles.summaryValue}>{value}</Text>
+              <Text style={styles.summaryHint}>{hint}</Text>
+            </View>
+          ))}
+        </View>
+
+        <ManagerFooter />
+      </ScrollView>
+    </ManagerLayout>
   )
 }
 
-function Chip({ label }: { label: string }) {
-  return <View style={styles.chip}><Text style={styles.chipText}>{label}</Text><MaterialIcons name="expand-more" size={18} color="#707973" /></View>
-}
-
-function Summary({ label, value }: { label: string; value: string }) {
-  return <View style={styles.summary}><Text style={styles.summaryLabel}>{label}</Text><Text style={styles.summaryValue}>{value}</Text></View>
-}
-
-function Meta({ icon, value }: { icon: keyof typeof MaterialIcons.glyphMap; value: string }) {
-  return <View style={styles.meta}><MaterialIcons name={icon} size={16} color="#707973" /><Text style={styles.metaText}>{value}</Text></View>
-}
-
-function Status({ status }: { status: string }) {
-  const ready = status === "Scheduled Pickup"
-  return <Text style={[styles.status, ready ? styles.statusReady : styles.statusPending]}>{status}</Text>
-}
-
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: "#fcf9f8" },
-  content: { paddingBottom: 36 },
-  shell: { width: "100%", maxWidth: 1280, alignSelf: "center" },
-  shellDesktop: { flexDirection: "row", alignItems: "stretch" },
-  main: { flex: 1, padding: 20, gap: 20 },
-  header: { gap: 14 },
-  headerWide: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  title: { color: "#0f5238", fontSize: 34, lineHeight: 41, fontWeight: "900" },
-  subtitle: { color: "#707973", fontSize: 14, lineHeight: 22, marginTop: 4 },
-  primaryButton: { alignSelf: "flex-start", backgroundColor: "#0f5238", borderRadius: 999, paddingHorizontal: 18, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 8 },
+  page: { padding: 32, backgroundColor: "#fcf9f8" },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" },
+  title: { color: "#221816", fontSize: 34, fontWeight: "900" },
+  subtitle: { color: "#66736d", marginTop: 6, fontWeight: "700" },
+  actions: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
+  secondaryButton: { borderWidth: 1, borderColor: "#cfd8d2", borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: "#ffffff" },
+  secondaryText: { color: "#07543b", fontWeight: "900" },
+  primaryButton: { backgroundColor: "#07543b", borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 7 },
   primaryText: { color: "#ffffff", fontWeight: "900" },
-  filterCard: { backgroundColor: "#ffffff", borderColor: "#e0eee5", borderWidth: 1, borderRadius: 16, padding: 14, gap: 12, shadowColor: "#2d6a4f", shadowOpacity: 0.08, shadowRadius: 18, elevation: 3 },
-  filterCardWide: { flexDirection: "row", alignItems: "center" },
-  searchBox: { flex: 1, minHeight: 46, borderColor: "#e5e2e1", borderWidth: 1, borderRadius: 999, backgroundColor: "#f6f3f2", flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14 },
-  searchInput: { flex: 1, color: "#1b1b1b", outlineStyle: "none" as never },
-  chip: { minHeight: 46, borderColor: "#e5e2e1", borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  chipText: { color: "#404943", fontWeight: "800" },
-  summaryGrid: { gap: 12 },
-  summaryGridWide: { flexDirection: "row" },
-  summary: { flex: 1, backgroundColor: "#ffffff", borderRadius: 16, borderColor: "#e0eee5", borderWidth: 1, padding: 16 },
-  summaryLabel: { color: "#707973", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
-  summaryValue: { color: "#0f5238", fontSize: 30, fontWeight: "900", marginTop: 8 },
-  orderList: { gap: 14 },
-  orderCard: { backgroundColor: "#ffffff", borderRadius: 16, borderColor: "#e0eee5", borderWidth: 1, padding: 18, gap: 14, shadowColor: "#2d6a4f", shadowOpacity: 0.08, shadowRadius: 18, elevation: 3 },
-  orderCardWide: { flexDirection: "row", alignItems: "center" },
-  orderMain: { flex: 1 },
-  orderId: { color: "#707973", fontSize: 12, fontWeight: "900" },
-  orderTitle: { color: "#0f5238", fontSize: 20, fontWeight: "900", marginTop: 3, marginBottom: 10 },
-  metaRow: { flexDirection: "row", gap: 12, flexWrap: "wrap" },
-  meta: { flexDirection: "row", alignItems: "center", gap: 4 },
-  metaText: { color: "#404943", fontWeight: "700" },
-  status: { alignSelf: "flex-start", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, fontSize: 12, fontWeight: "900" },
-  statusReady: { backgroundColor: "#a0f4c8", color: "#005236" },
-  statusPending: { backgroundColor: "#e6e3d0", color: "#48473a" },
-  actions: { flexDirection: "row", gap: 10 },
-  approveButton: { backgroundColor: "#0f5238", borderRadius: 999, paddingHorizontal: 16, paddingVertical: 10 },
-  approveText: { color: "#ffffff", fontWeight: "900" },
-  outlineButton: { borderColor: "#0f5238", borderWidth: 1, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9 },
-  outlineText: { color: "#0f5238", fontWeight: "900" },
+  filters: { marginTop: 30, gap: 12 },
+  filtersDesktop: { flexDirection: "row", alignItems: "center" },
+  search: { flex: 1.7, minWidth: 260, backgroundColor: "#ffffff", borderWidth: 1, borderColor: "#e4dfdc", borderRadius: 8, paddingHorizontal: 14, paddingVertical: 13, flexDirection: "row", alignItems: "center", gap: 8 },
+  placeholder: { color: "#7a827d", fontWeight: "700" },
+  select: { flex: 0.7, minWidth: 150, backgroundColor: "#ffffff", borderWidth: 1, borderColor: "#e4dfdc", borderRadius: 8, paddingHorizontal: 14, paddingVertical: 13, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  selectText: { color: "#43584d", fontWeight: "800" },
+  iconButton: { width: 48, height: 48, borderRadius: 8, backgroundColor: "#ffffff", borderWidth: 1, borderColor: "#e4dfdc", alignItems: "center", justifyContent: "center" },
+  panel: { marginTop: 30, backgroundColor: "#ffffff", borderRadius: 8, borderWidth: 1, borderColor: "#ebe6e4", padding: 22 },
+  tableHead: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#ebe6e4", flexDirection: "row", gap: 12 },
+  tableRow: { minHeight: 72, borderBottomWidth: 1, borderBottomColor: "#f0ecea", flexDirection: "row", alignItems: "center", gap: 12 },
+  dateCol: { flex: 1, color: "#263b31", fontSize: 12, fontWeight: "800" },
+  col: { flex: 1.15, color: "#263b31", fontSize: 12, fontWeight: "800" },
+  idCol: { flex: 1.15, color: "#07543b", fontSize: 12, fontWeight: "900" },
+  smallCol: { flex: 0.75, color: "#263b31", fontSize: 12, fontWeight: "800" },
+  actionCol: { width: 46, color: "#263b31", fontSize: 12, fontWeight: "900" },
+  grade: { flex: 0.75, backgroundColor: "#d5f8df", borderRadius: 999, alignItems: "center", paddingVertical: 6 },
+  gradeNeutral: { backgroundColor: "#f1eee8" },
+  gradeText: { color: "#07543b", fontSize: 10, fontWeight: "900" },
+  gradeTextNeutral: { color: "#5f625f" },
+  pagination: { paddingTop: 18, flexDirection: "row", justifyContent: "space-between", gap: 12, flexWrap: "wrap" },
+  pageMeta: { color: "#66736d", fontWeight: "700" },
+  pages: { flexDirection: "row", alignItems: "center", gap: 9 },
+  pageActive: { color: "#ffffff", backgroundColor: "#07543b", borderRadius: 6, paddingHorizontal: 9, paddingVertical: 5, overflow: "hidden", fontWeight: "900" },
+  pageNumber: { color: "#607268", fontWeight: "900" },
+  summaryGrid: { gap: 16, marginTop: 24 },
+  summaryGridDesktop: { flexDirection: "row" },
+  summaryCard: { flex: 1, minWidth: 210, backgroundColor: "#ffffff", borderRadius: 8, borderWidth: 1, borderColor: "#ebe6e4", padding: 22 },
+  summaryTop: { flexDirection: "row", justifyContent: "space-between", gap: 12 },
+  summaryLabel: { color: "#53675d", fontWeight: "800" },
+  summaryValue: { color: "#163c2d", fontSize: 24, fontWeight: "900", marginTop: 18 },
+  summaryHint: { color: "#6a7c72", marginTop: 7, fontWeight: "700" },
 })
