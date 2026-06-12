@@ -5,11 +5,12 @@ import { useState } from "react"
 import {
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   useWindowDimensions,
   View,
+  KeyboardAvoidingView,
+  Platform
 } from "react-native"
 
 type Role = "farmer" | "manager" | "buyer"
@@ -22,70 +23,139 @@ export default function LoginScreen() {
   const { width } = useWindowDimensions()
   const [role, setRole] = useState<Role>("farmer")
   const [remember, setRemember] = useState(false)
+  
+  // Adjusted for Tailwind layout responsiveness
   const isWide = width >= 760
 
   const signIn = () => router.replace(`/${role}`)
 
   return (
-    <ScrollView style={styles.page} contentContainerStyle={styles.content}>
-      <View style={[styles.card, isWide && styles.cardWide]}>
-        <View style={styles.logoWrap}>
-          <Image source={logo} style={styles.logo} contentFit="contain" />
-        </View>
-
-        <Text style={styles.title}>CEMS Avocado Cooperative</Text>
-        <Text style={styles.subtitle}>Cooperative Export Management System</Text>
-
-        <Text style={styles.roleLabel}>Select Role</Text>
-        <View style={styles.roleRow}>
-          {roles.map((item) => {
-            const active = item === role
-            return (
-              <Pressable
-                key={item}
-                style={[styles.roleChip, active && styles.roleChipActive]}
-                onPress={() => setRole(item)}
-              >
-                <Text style={[styles.roleText, active && styles.roleTextActive]}>
-                  {item[0].toUpperCase() + item.slice(1)}
-                </Text>
-              </Pressable>
-            )
-          })}
-        </View>
-
-        <Field
-          label="Email Address"
-          icon="mail-outline"
-          placeholder="Enter your email"
-          keyboardType="email-address"
-        />
-        <Field label="Password" icon="lock-outline" placeholder="Enter your password" secureTextEntry />
-
-        <View style={styles.loginMeta}>
-          <Pressable style={styles.checkLine} onPress={() => setRemember((value) => !value)}>
-            <View style={[styles.checkbox, remember && styles.checkboxActive]}>
-              {remember ? <MaterialIcons name="check" size={16} color="#ffffff" /> : null}
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      className="flex-1 bg-stone-500"
+    >
+      <ScrollView 
+        contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 16 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View 
+          className={`bg-[#EAEAEA] rounded-3xl p-6 pb-12 shadow-lg relative overflow-hidden w-full ${
+            isWide ? 'max-w-2xl p-12' : 'max-w-md'
+          }`}
+        >
+          {/* Decorative Bottom Right Circles */}
+          <View className="absolute -bottom-12 -right-12 opacity-10 pointer-events-none">
+            <View className="w-40 h-40 rounded-full border-[12px] border-[#2A5C43] items-center justify-center">
+              <View className="w-20 h-20 rounded-full border-[12px] border-[#2A5C43]" />
             </View>
-            <Text style={styles.metaText}>Remember me</Text>
-          </Pressable>
-          <Pressable>
-            <Text style={styles.forgotText}>Forgot password?</Text>
-          </Pressable>
-        </View>
+          </View>
 
-        <Pressable style={styles.primaryButton} onPress={signIn}>
-          <Text style={styles.primaryText}>Sign In</Text>
-        </Pressable>
+          {/* Header & Logo */}
+          <View className="items-center mt-4 mb-8">
+            <View className="flex-row items-center mb-3">
+              <Image 
+                source={logo} 
+                style={{ width: 24, height: 24 }} 
+                contentFit="contain" 
+                tintColor="#2A5C43" 
+              />
+              <Text className="text-2xl font-black text-[#2A5C43] ml-2 tracking-wide">
+                CEMS
+              </Text>
+            </View>
+            <Text className="text-center text-gray-500 font-medium px-4">
+              Cooperative Export Management{'\n'}System
+            </Text>
+          </View>
 
-        <View style={styles.footerPrompt}>
-          <Text style={styles.promptText}>Don't have an account?</Text>
-          <Pressable onPress={() => router.push({ pathname: "/(auth)/onboarding", params: { role } })}>
-            <Text style={styles.promptLink}>Create your {role} profile</Text>
+          {/* Role Selector */}
+          <View className="mb-6">
+            <Text className="text-[10px] font-bold text-center text-gray-600 mb-3 tracking-widest uppercase">
+              Select Role
+            </Text>
+            <View className="flex-row justify-between">
+              {roles.map((item) => {
+                const active = item === role
+                return (
+                  <Pressable
+                    key={item}
+                    onPress={() => setRole(item)}
+                    className={`px-5 py-2.5 rounded-full shadow-sm ${
+                      active ? 'bg-[#2A5C43]' : 'bg-[#F9F9F9]'
+                    }`}
+                  >
+                    <Text
+                      className={`font-semibold text-sm ${
+                        active ? 'text-white' : 'text-gray-700'
+                      }`}
+                    >
+                      {item[0].toUpperCase() + item.slice(1)}
+                    </Text>
+                  </Pressable>
+                )
+              })}
+            </View>
+          </View>
+
+          {/* Inputs */}
+          <Field
+            label="Email Address"
+            icon="mail-outline"
+            placeholder="Enter your email"
+            keyboardType="email-address"
+          />
+          <Field 
+            label="Password" 
+            icon="lock-outline" 
+            placeholder="Enter your password" 
+            secureTextEntry 
+          />
+
+          {/* Options Row */}
+          <View className="flex-row justify-between items-center mb-8 px-1 mt-1">
+            <Pressable 
+              className="flex-row items-center" 
+              onPress={() => setRemember((value) => !value)}
+            >
+              <View className={`w-4 h-4 border rounded-[3px] mr-2 items-center justify-center ${
+                remember ? 'bg-[#2A5C43] border-[#2A5C43]' : 'border-gray-400 bg-transparent'
+              }`}>
+                {remember ? <MaterialIcons name="check" size={12} color="#ffffff" /> : null}
+              </View>
+              <Text className="text-sm text-gray-600 font-medium">Remember me</Text>
+            </Pressable>
+            <Pressable>
+              <Text className="text-sm text-[#2A5C43] underline font-medium">
+                Forgot password?
+              </Text>
+            </Pressable>
+          </View>
+
+          {/* Submit Button */}
+          <Pressable 
+            className="bg-[#2A5C43] rounded-xl py-4 shadow-md mb-8 active:opacity-80" 
+            onPress={signIn}
+          >
+            <Text className="text-white text-center font-bold text-base">
+              Sign In
+            </Text>
           </Pressable>
+
+          {/* Footer */}
+          <View className="flex-col items-center gap-1 mb-4">
+            <Text className="text-gray-500 font-medium text-sm">
+              Don't have an account?
+            </Text>
+            <Pressable onPress={() => router.push({ pathname: "/(auth)/onboarding", params: { role } })}>
+              <Text className="text-gray-500 underline font-medium text-sm">
+                Create your {role} profile
+              </Text>
+            </Pressable>
+          </View>
+
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   )
 }
 
@@ -103,198 +173,22 @@ function Field({
   keyboardType?: "default" | "email-address"
 }) {
   return (
-    <View style={styles.fieldBlock}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <View style={styles.inputShell}>
-        <MaterialIcons name={icon} size={25} color="#707973" />
+    <View className="mb-4">
+      <Text className="text-xs font-bold text-gray-700 mb-1.5 ml-1">
+        {label}
+      </Text>
+      <View className="flex-row items-center bg-[#F9F9F9] rounded-xl px-4 py-3.5 shadow-sm border border-gray-100">
+        <MaterialIcons name={icon} size={20} color="#71717A" />
         <TextInput
-          style={styles.input}
+          className="flex-1 ml-3 text-gray-800 font-medium"
           placeholder={placeholder}
-          placeholderTextColor="#697386"
+          placeholderTextColor="#A1A1AA"
           secureTextEntry={secureTextEntry}
           keyboardType={keyboardType}
           autoCapitalize="none"
+          style={{ outlineStyle: "none" } as never}
         />
       </View>
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  page: {
-    flex: 1,
-    backgroundColor: "#eef7f0",
-  },
-  content: {
-    minHeight: "100%",
-    padding: 24,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  card: {
-    width: "100%",
-    maxWidth: 560,
-    backgroundColor: "#ffffff",
-    borderRadius: 24,
-    padding: 26,
-    shadowColor: "#2d6a4f",
-    shadowOpacity: 0.1,
-    shadowRadius: 26,
-    shadowOffset: { width: 0, height: 14 },
-    elevation: 8,
-  },
-  cardWide: {
-    padding: 44,
-  },
-  logoWrap: {
-    alignSelf: "center",
-    width: 76,
-    height: 76,
-    borderRadius: 24,
-    backgroundColor: "#f6f3f2",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 22,
-  },
-  logo: {
-    width: 42,
-    height: 42,
-  },
-  title: {
-    color: "#0f5238",
-    fontSize: 42,
-    lineHeight: 50,
-    fontWeight: "900",
-    textAlign: "center",
-    marginBottom: 10,
-  },
-  subtitle: {
-    color: "#605f50",
-    fontSize: 20,
-    lineHeight: 30,
-    textAlign: "center",
-    marginBottom: 44,
-  },
-  roleLabel: {
-    color: "#313030",
-    fontSize: 13,
-    fontWeight: "900",
-    letterSpacing: 2,
-    textAlign: "center",
-    textTransform: "uppercase",
-    marginBottom: 14,
-  },
-  roleRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 28,
-  },
-  roleChip: {
-    flex: 1,
-    minHeight: 54,
-    borderRadius: 999,
-    backgroundColor: "#f0eded",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 10,
-  },
-  roleChipActive: {
-    backgroundColor: "#2d6a4f",
-  },
-  roleText: {
-    color: "#313030",
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  roleTextActive: {
-    color: "#ffffff",
-  },
-  fieldBlock: {
-    marginBottom: 18,
-  },
-  fieldLabel: {
-    color: "#313030",
-    fontSize: 14,
-    fontWeight: "900",
-    letterSpacing: 1,
-    marginBottom: 9,
-  },
-  inputShell: {
-    minHeight: 70,
-    borderColor: "#e5e2e1",
-    borderWidth: 1,
-    borderRadius: 16,
-    backgroundColor: "#fcf9f8",
-    paddingHorizontal: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  input: {
-    flex: 1,
-    color: "#1b1b1b",
-    fontSize: 18,
-    outlineStyle: "none" as never,
-  },
-  loginMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    flexWrap: "wrap",
-    gap: 12,
-    marginTop: 4,
-    marginBottom: 28,
-  },
-  checkLine: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  checkbox: {
-    width: 25,
-    height: 25,
-    borderColor: "#707973",
-    borderWidth: 1.5,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  checkboxActive: {
-    backgroundColor: "#2d6a4f",
-    borderColor: "#2d6a4f",
-  },
-  metaText: {
-    color: "#605f50",
-    fontSize: 16,
-  },
-  forgotText: {
-    color: "#0f5238",
-    fontSize: 16,
-    textDecorationLine: "underline",
-  },
-  primaryButton: {
-    minHeight: 58,
-    borderRadius: 999,
-    backgroundColor: "#2d6a4f",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 40,
-  },
-  primaryText: {
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "900",
-  },
-  footerPrompt: {
-    alignItems: "center",
-    gap: 8,
-  },
-  promptText: {
-    color: "#605f50",
-    fontSize: 18,
-  },
-  promptLink: {
-    color: "#0f5238",
-    fontSize: 17,
-    fontWeight: "900",
-  },
-})

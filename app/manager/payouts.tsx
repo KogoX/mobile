@@ -1,19 +1,19 @@
 import { MaterialIcons } from "@expo/vector-icons"
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native"
 
-import { ManagerFooter, ManagerLayout } from "../../components/ManagerLayout"
+import { ManagerButton, ManagerFooter, ManagerLayout } from "../../components/ManagerLayout"
 
 const cards = [
-  ["Current Season Earnings", "$45,250.00", "+12.5% from last season", "account-balance-wallet"],
-  ["Pending Payments", "$3,840.50", "Expected clearance in 3-5 business days", "pending-actions"],
-  ["Total Disbursed", "$124,500.00", "Lifetime earnings since 2021", "verified"],
+  ["Current Season Earnings", "$45,250.00", "+12.5% from last season", "account-balance-wallet", "#2d6a4f"],
+  ["Pending Payments", "$3,840.50", "Expected clearance in 3-5 business days", "pending-actions", "#005337"],
+  ["Total Disbursed", "$124,500.00", "Lifetime earnings since 2021", "check-circle", "#0f5238"],
 ]
 
-const transactions = [
-  ["Oct 24, 2024", "#ORD-7829", "FarmFresh Imports Ltd", "1,250", "$4,500.00", "Disbursed"],
+const rows = [
+  ["Oct 24, 2024", "#ORD-7829", "EuroFresh Imports Ltd.", "1,250", "$4,500.00", "Disbursed"],
   ["Oct 21, 2024", "#ORD-7815", "Global AgriCorp", "850", "$3,060.00", "Processing"],
-  ["Oct 18, 2024", "#ORD-7796", "Nordic Organics", "2,100", "$7,560.00", "Disbursed"],
-  ["Oct 15, 2024", "#ORD-7742", "Sunrise Produce", "450", "$1,620.00", "Flagged"],
+  ["Oct 18, 2024", "#ORD-7790", "Nordic Organics", "2,100", "$7,560.00", "Disbursed"],
+  ["Oct 15, 2024", "#ORD-7742", "Sunshine Produce", "450", "$1,620.00", "Flagged"],
 ]
 
 export default function ManagerPayouts() {
@@ -21,80 +21,70 @@ export default function ManagerPayouts() {
   const desktop = width >= 980
 
   return (
-    <ManagerLayout active="Payments">
+    <ManagerLayout
+      active="Payments"
+      title="Payments Dashboard"
+      subtitle="Financial overview and transaction history for the current season."
+      action={<ManagerButton icon="file-download" label="Download Statement" variant="outline" />}
+    >
       <ScrollView contentContainerStyle={styles.page}>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Payments Dashboard</Text>
-            <Text style={styles.subtitle}>Financial overview and transaction history for the current season.</Text>
-          </View>
-          <View style={styles.statementButton}>
-            <MaterialIcons name="file-download" size={17} color="#07543b" />
-            <Text style={styles.statementText}>Download Statement</Text>
-          </View>
-        </View>
-
         <View style={[styles.cardGrid, desktop && styles.cardGridDesktop]}>
-          {cards.map(([label, value, hint, icon]) => (
-            <View key={label} style={styles.moneyCard}>
+          {cards.map(([title, value, hint, icon, color]) => (
+            <View key={title} style={styles.moneyCard}>
               <View style={styles.cardTop}>
-                <Text style={styles.cardLabel}>{label}</Text>
-                <View style={styles.cardIcon}>
-                  <MaterialIcons name={icon as never} size={18} color="#0f8a5f" />
-                </View>
+                <Text style={styles.cardTitle}>{title}</Text>
+                <View style={styles.cardIcon}><MaterialIcons name={icon as never} size={24} color={color} /></View>
               </View>
-              <Text style={styles.cardValue}>{value}</Text>
-              <Text style={styles.cardHint}>{hint}</Text>
-              <View style={styles.watermark} />
+              <Text style={[styles.moneyValue, { color }]}>{value}</Text>
+              <Text style={styles.moneyHint}>{hint}</Text>
+              <View style={styles.leafMark}><MaterialIcons name="eco" size={84} color="#2d6a4f" /></View>
             </View>
           ))}
         </View>
 
-        <View style={styles.panel}>
-          <View style={styles.panelHead}>
-            <Text style={styles.panelTitle}>Recent Transactions</Text>
-            <View style={styles.tools}>
-              <View style={styles.search}>
-                <MaterialIcons name="search" size={16} color="#6f7973" />
-                <Text style={styles.placeholder}>Search orders...</Text>
-              </View>
-              <MaterialIcons name="filter-list" size={20} color="#07543b" />
+        <View style={styles.transactions}>
+          <View style={styles.transactionHead}>
+            <Text style={styles.sectionTitle}>Recent Transactions</Text>
+            <View style={styles.search}>
+              <MaterialIcons name="search" size={18} color="#707973" />
+              <Text style={styles.searchText}>Search orders...</Text>
+              <MaterialIcons name="filter-list" size={20} color="#404943" />
             </View>
           </View>
-
-          <View style={styles.tableHead}>
-            <Text style={styles.dateCol}>Date</Text>
-            <Text style={styles.col}>Order ID</Text>
-            <Text style={styles.buyerCol}>Buyer</Text>
-            <Text style={styles.smallCol}>Quantity (KG)</Text>
-            <Text style={styles.col}>Amount</Text>
-            <Text style={styles.smallCol}>Status</Text>
-            <Text style={styles.actionCol}> </Text>
-          </View>
-
-          {transactions.map(([date, order, buyer, qty, amount, status]) => (
-            <View key={order} style={styles.tableRow}>
-              <Text style={styles.dateCol}>{date}</Text>
-              <Text style={styles.idCol}>{order}</Text>
-              <Text style={styles.buyerCol}>{buyer}</Text>
-              <Text style={styles.smallCol}>{qty}</Text>
-              <Text style={styles.amount}>{amount}</Text>
-              <View style={[styles.status, status === "Processing" && styles.processing, status === "Flagged" && styles.flagged]}>
-                <Text style={[styles.statusText, status === "Flagged" && styles.flaggedText]}>{status}</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.table}>
+              <View style={styles.tableHead}>
+                <Text style={styles.dateHead}>Date</Text>
+                <Text style={styles.orderHead}>Order ID</Text>
+                <Text style={styles.buyerHead}>Buyer</Text>
+                <Text style={styles.qtyHead}>Quantity (kg)</Text>
+                <Text style={styles.amountHead}>Amount</Text>
+                <Text style={styles.statusHead}>Status</Text>
+                <Text style={styles.actionHead}> </Text>
               </View>
-              <MaterialIcons name="more-vert" size={20} color="#6f7973" style={styles.actionCol} />
+              {rows.map(([date, order, buyer, qty, amount, status]) => (
+                <View key={order} style={styles.row}>
+                  <Text style={styles.dateCell}>{date}</Text>
+                  <Text style={styles.orderCell}>{order}</Text>
+                  <Text style={styles.buyerCell}>{buyer}</Text>
+                  <Text style={styles.qtyCell}>{qty}</Text>
+                  <Text style={styles.amountCell}>{amount}</Text>
+                  <View style={[styles.status, status === "Processing" && styles.processing, status === "Flagged" && styles.flagged]}>
+                    <Text style={[styles.statusText, status === "Flagged" && styles.flaggedText]}>{status}</Text>
+                  </View>
+                  <View style={styles.actionCell}><MaterialIcons name="more-vert" size={20} color="#2d6a4f" /></View>
+                </View>
+              ))}
             </View>
-          ))}
-
+          </ScrollView>
           <View style={styles.pagination}>
             <Text style={styles.pageMeta}>Showing 1-4 of 24 transactions</Text>
             <View style={styles.pages}>
-              <MaterialIcons name="chevron-left" size={18} color="#9aa39d" />
-              <MaterialIcons name="chevron-right" size={18} color="#07543b" />
+              <Text style={styles.pageMuted}>‹</Text>
+              <Text style={styles.pageNext}>›</Text>
             </View>
           </View>
         </View>
-
         <ManagerFooter />
       </ScrollView>
     </ManagerLayout>
@@ -103,41 +93,44 @@ export default function ManagerPayouts() {
 
 const styles = StyleSheet.create({
   page: { padding: 32, backgroundColor: "#fcf9f8" },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" },
-  title: { color: "#221816", fontSize: 34, fontWeight: "900" },
-  subtitle: { color: "#66736d", marginTop: 6, fontWeight: "700" },
-  statementButton: { borderWidth: 1, borderColor: "#9fbcaf", borderRadius: 22, paddingHorizontal: 17, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#ffffff" },
-  statementText: { color: "#07543b", fontWeight: "900" },
-  cardGrid: { gap: 16, marginTop: 30 },
+  cardGrid: { gap: 24 },
   cardGridDesktop: { flexDirection: "row" },
-  moneyCard: { flex: 1, minWidth: 240, overflow: "hidden", backgroundColor: "#ffffff", borderRadius: 8, borderWidth: 1, borderColor: "#ebe6e4", padding: 24 },
-  cardTop: { flexDirection: "row", justifyContent: "space-between", gap: 12 },
-  cardLabel: { flex: 1, color: "#221816", fontSize: 16, fontWeight: "900" },
-  cardIcon: { width: 30, height: 30, borderRadius: 8, backgroundColor: "#e5f6ec", alignItems: "center", justifyContent: "center" },
-  cardValue: { color: "#07543b", fontSize: 30, fontWeight: "900", marginTop: 16 },
-  cardHint: { color: "#6d7771", marginTop: 9, fontWeight: "700" },
-  watermark: { position: "absolute", right: -16, bottom: -18, width: 76, height: 76, borderRadius: 999, backgroundColor: "#f1f3ef" },
-  panel: { marginTop: 34, backgroundColor: "#ffffff", borderRadius: 8, borderWidth: 1, borderColor: "#ebe6e4", padding: 22 },
-  panelHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" },
-  panelTitle: { color: "#221816", fontSize: 26, fontWeight: "900" },
-  tools: { flexDirection: "row", alignItems: "center", gap: 14 },
-  search: { minWidth: 210, borderWidth: 1, borderColor: "#e4dfdc", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 9, flexDirection: "row", alignItems: "center", gap: 8 },
-  placeholder: { color: "#7a827d", fontWeight: "700" },
-  tableHead: { marginTop: 24, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#ebe6e4", flexDirection: "row", gap: 12 },
-  tableRow: { minHeight: 72, borderBottomWidth: 1, borderBottomColor: "#f0ecea", flexDirection: "row", alignItems: "center", gap: 12 },
-  dateCol: { flex: 0.95, color: "#263b31", fontSize: 12, fontWeight: "800" },
-  col: { flex: 1, color: "#263b31", fontSize: 12, fontWeight: "800" },
-  buyerCol: { flex: 1.35, color: "#263b31", fontSize: 12, fontWeight: "800" },
-  smallCol: { flex: 0.82, color: "#263b31", fontSize: 12, fontWeight: "800" },
-  idCol: { flex: 1, color: "#07543b", fontSize: 12, fontWeight: "900" },
-  amount: { flex: 1, color: "#163c2d", fontSize: 12, fontWeight: "900" },
-  actionCol: { width: 34 },
-  status: { flex: 0.82, backgroundColor: "#d5f8df", borderRadius: 999, alignItems: "center", paddingVertical: 6 },
-  processing: { backgroundColor: "#f1eee8" },
-  flagged: { backgroundColor: "#ffe4e2" },
-  statusText: { color: "#07543b", fontSize: 10, fontWeight: "900" },
-  flaggedText: { color: "#ba1a1a" },
-  pagination: { paddingTop: 18, flexDirection: "row", justifyContent: "space-between", gap: 12, flexWrap: "wrap" },
-  pageMeta: { color: "#66736d", fontWeight: "700" },
-  pages: { flexDirection: "row", gap: 12 },
+  moneyCard: { flex: 1, minWidth: 260, minHeight: 210, backgroundColor: "#ffffff", borderRadius: 12, borderWidth: 1, borderColor: "#eae7e7", padding: 24, overflow: "hidden", shadowColor: "#2d6a4f", shadowOpacity: 0.06, shadowRadius: 24 },
+  cardTop: { flexDirection: "row", justifyContent: "space-between", gap: 14 },
+  cardTitle: { flex: 1, color: "#1b1b1b", fontSize: 26, fontWeight: "900", fontFamily: "serif", lineHeight: 32 },
+  cardIcon: { width: 42, height: 42, borderRadius: 999, backgroundColor: "rgba(149,212,179,0.2)", alignItems: "center", justifyContent: "center" },
+  moneyValue: { fontSize: 40, fontWeight: "900", marginTop: 16 },
+  moneyHint: { color: "#605f50", fontSize: 16, marginTop: 8 },
+  leafMark: { position: "absolute", right: -18, bottom: -20, opacity: 0.05 },
+  transactions: { marginTop: 64, backgroundColor: "#ffffff", borderRadius: 12, overflow: "hidden", shadowColor: "#2d6a4f", shadowOpacity: 0.06, shadowRadius: 24 },
+  transactionHead: { padding: 24, flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 18, flexWrap: "wrap" },
+  sectionTitle: { color: "#1b1b1b", fontSize: 36, fontWeight: "900", fontFamily: "serif" },
+  search: { minWidth: 250, borderRadius: 999, borderWidth: 1, borderColor: "#eae7e7", paddingHorizontal: 14, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 8 },
+  searchText: { flex: 1, color: "#707973" },
+  table: { minWidth: 930 },
+  tableHead: { flexDirection: "row", backgroundColor: "#f6f3f2", borderTopWidth: 1, borderBottomWidth: 1, borderColor: "#eae7e7" },
+  dateHead: { width: 140, padding: 24, color: "#404943", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
+  orderHead: { width: 130, padding: 24, color: "#404943", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
+  buyerHead: { width: 220, padding: 24, color: "#404943", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
+  qtyHead: { width: 130, padding: 24, color: "#404943", fontSize: 12, fontWeight: "900", textTransform: "uppercase", textAlign: "right" },
+  amountHead: { width: 130, padding: 24, color: "#404943", fontSize: 12, fontWeight: "900", textTransform: "uppercase", textAlign: "right" },
+  statusHead: { width: 120, padding: 24, color: "#404943", fontSize: 12, fontWeight: "900", textTransform: "uppercase", textAlign: "center" },
+  actionHead: { width: 60, padding: 24 },
+  row: { minHeight: 66, flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: "#eae7e7" },
+  dateCell: { width: 140, paddingHorizontal: 24, color: "#605f50" },
+  orderCell: { width: 130, paddingHorizontal: 24, color: "#1b1b1b", fontWeight: "800" },
+  buyerCell: { width: 220, paddingHorizontal: 24, color: "#1b1b1b" },
+  qtyCell: { width: 130, paddingHorizontal: 24, color: "#1b1b1b", textAlign: "right" },
+  amountCell: { width: 130, paddingHorizontal: 24, color: "#1b1b1b", textAlign: "right", fontWeight: "800" },
+  status: { width: 96, marginLeft: 12, borderRadius: 999, backgroundColor: "#a0f4c8", alignItems: "center", paddingVertical: 6 },
+  processing: { backgroundColor: "#e5e2e1" },
+  flagged: { backgroundColor: "#ffdad6" },
+  statusText: { color: "#005236", fontSize: 11, fontWeight: "900" },
+  flaggedText: { color: "#93000a" },
+  actionCell: { width: 60, alignItems: "center" },
+  pagination: { padding: 24, flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" },
+  pageMeta: { color: "#404943", fontSize: 13 },
+  pages: { flexDirection: "row", gap: 10 },
+  pageMuted: { width: 36, height: 36, borderRadius: 8, borderWidth: 1, borderColor: "#bfc9c1", color: "#707973", textAlign: "center", paddingTop: 7, overflow: "hidden" },
+  pageNext: { width: 36, height: 36, borderRadius: 8, borderWidth: 1, borderColor: "#bfc9c1", color: "#1b1b1b", textAlign: "center", paddingTop: 7, overflow: "hidden" },
 })
