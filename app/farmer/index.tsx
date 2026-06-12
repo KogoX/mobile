@@ -3,7 +3,6 @@ import { Image } from "expo-image"
 import {
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   useWindowDimensions,
@@ -39,120 +38,176 @@ export default function FarmerDashboard() {
   const isWide = width >= 900
 
   return (
-    <ScrollView style={styles.page} contentContainerStyle={styles.content}>
-      <View style={styles.topBar}>
-        <View style={styles.brand}>
-          <Image source={logo} style={styles.logo} contentFit="contain" />
-          <Text style={styles.brandText}>CEMS</Text>
+    <ScrollView className="flex-1 bg-[#FCF9F8]" contentContainerStyle={{ paddingBottom: 42 }}>
+      
+      {/* Top Bar */}
+      <View className="min-h-[72px] px-6 border-b border-[#EAEAEA] bg-white flex-row items-center justify-between gap-4 shadow-sm z-10">
+        <View className="flex-row items-center gap-2">
+          <Image source={logo} style={{ width: 24, height: 24 }} contentFit="contain" tintColor="#2A5C43" />
+          <Text className="text-[#2A5C43] text-xl font-black tracking-wide">CEMS</Text>
         </View>
-        <View style={styles.navRow}>
-          <Text style={styles.navActive}>Dashboard</Text>
-          {isWide ? <Text style={styles.navItem}>Markets</Text> : null}
-          {isWide ? <Text style={styles.navItem}>Resources</Text> : null}
+        <View className="flex-row gap-6 items-center">
+          <Text className="text-[#2A5C43] font-black text-sm underline underline-offset-4">Dashboard</Text>
+          {isWide && (
+            <>
+              <Text className="text-gray-500 font-bold text-sm">Markets</Text>
+              <Text className="text-gray-500 font-bold text-sm">Resources</Text>
+            </>
+          )}
         </View>
       </View>
 
-      <View style={styles.container}>
-        <View style={[styles.welcome, isWide && styles.welcomeWide]}>
+      <View className="w-full max-w-[1160px] self-center p-5 gap-6 mt-2">
+        
+        {/* Welcome Section */}
+        <View className={`gap-4 ${isWide ? 'flex-row justify-between items-end' : 'flex-col'}`}>
           <View>
-            <Text style={[styles.title, !isWide && styles.titleMobile]}>Good morning, Peter</Text>
-            <Text style={styles.lead}>Your orchard is thriving. Here's your export summary for today.</Text>
+            <Text className={`text-[#2A5C43] font-black ${isWide ? 'text-5xl leading-[56px]' : 'text-4xl leading-[42px]'}`}>
+              Good morning, Peter
+            </Text>
+            <Text className="text-gray-600 text-base md:text-lg mt-2 leading-relaxed">
+              Your orchard is thriving. Here's your export summary for today.
+            </Text>
           </View>
-          <View style={styles.verifiedPill}>
-            <MaterialIcons name="verified" size={20} color="#002113" />
-            <Text style={styles.verifiedText}>Tier 1 Verified Producer</Text>
+          <View className="self-start bg-[#A0F4C8] rounded-full px-4 py-2.5 flex-row items-center gap-2">
+            <MaterialIcons name="verified" size={18} color="#002113" />
+            <Text className="text-[#002113] text-xs font-black uppercase tracking-widest">
+              Tier 1 Verified Producer
+            </Text>
           </View>
         </View>
 
-        <View style={[styles.statsGrid, isWide && styles.statsGridWide]}>
-          {stats.map(([icon, label, value, note], index) => (
-            <View key={label} style={[styles.statCard, index === 3 && styles.rankCard]}>
-              <View style={styles.statTop}>
-                <View style={[styles.statIcon, index === 3 && styles.rankIcon]}>
-                  <MaterialIcons
-                    name={icon as keyof typeof MaterialIcons.glyphMap}
-                    size={23}
-                    color={index === 3 ? "#a3e635" : "#0f5238"}
-                  />
+        {/* Stats Grid */}
+        <View className={`gap-5 mt-2 ${isWide ? 'flex-row' : 'flex-col'}`}>
+          {stats.map(([icon, label, value, note], index) => {
+            const isRank = index === 3
+            return (
+              <View 
+                key={label} 
+                className={`flex-1 min-h-[160px] border border-gray-100 rounded-3xl p-6 justify-between shadow-sm ${
+                  isRank ? 'bg-[#2A5C43] border-[#2A5C43]' : 'bg-white'
+                }`}
+              >
+                <View className="flex-row justify-between items-start">
+                  <View className={`w-11 h-11 rounded-xl items-center justify-center ${isRank ? 'bg-[#1b4332]' : 'bg-[#EAF0EC]'}`}>
+                    <MaterialIcons
+                      name={icon as keyof typeof MaterialIcons.glyphMap}
+                      size={22}
+                      color={isRank ? "#A3E635" : "#2A5C43"}
+                    />
+                  </View>
+                  {note && !isRank && <Text className="text-[#2A5C43] text-xs font-black">{note}</Text>}
                 </View>
-                {note && index !== 3 ? <Text style={styles.statNote}>{note}</Text> : null}
+                <View className="mt-4">
+                  <Text className={`text-[10px] font-black uppercase tracking-widest mb-1 ${isRank ? 'text-[#b1f0ce]' : 'text-gray-500'}`}>
+                    {label}
+                  </Text>
+                  <Text className={`text-3xl font-black ${isRank ? 'text-white' : 'text-gray-800'}`}>
+                    {value} {isRank && <Text className="text-[#b1f0ce] text-sm font-bold ml-1">{note}</Text>}
+                  </Text>
+                </View>
               </View>
-              <Text style={[styles.statLabel, index === 3 && styles.rankLabel]}>{label}</Text>
-              <Text style={[styles.statValue, index === 3 && styles.rankValue]}>
-                {value} {index === 3 ? <Text style={styles.rankSub}>{note}</Text> : null}
-              </Text>
-            </View>
-          ))}
+            )
+          })}
         </View>
 
-        <View style={[styles.mainGrid, isWide && styles.mainGridWide]}>
-          <View style={styles.harvestCard}>
-            <Text style={styles.sectionTitle}>Log New Harvest</Text>
+        {/* Main Content Grid */}
+        <View className={`gap-5 ${isWide ? 'flex-row' : 'flex-col'}`}>
+          
+          {/* Harvest Form Card */}
+          <View className="flex-1 bg-white rounded-3xl border border-gray-100 p-6 shadow-sm">
+            <Text className="text-[#2A5C43] text-2xl font-black mb-4">Log New Harvest</Text>
+            
             <FormField label="Crop Season" value="Main Season 2024" />
             <FormField label="Quantity (Kilograms)" value="0.00" input />
-            <Text style={styles.label}>Produce Grade</Text>
-            <View style={styles.gradeRow}>
-              {["A", "B", "C"].map((grade) => (
-                <Pressable key={grade} style={[styles.gradeButton, grade === "A" && styles.gradeActive]}>
-                  <Text style={[styles.gradeText, grade === "A" && styles.gradeTextActive]}>{grade}</Text>
-                </Pressable>
-              ))}
+            
+            <View className="mt-4 mb-2">
+              <Text className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2 ml-1">Produce Grade</Text>
+              <View className="flex-row gap-3">
+                {["A", "B", "C"].map((grade) => (
+                  <Pressable 
+                    key={grade} 
+                    className={`flex-1 border rounded-xl py-3 items-center ${
+                      grade === "A" ? 'bg-[#2A5C43] border-[#2A5C43]' : 'bg-[#F9F9F9] border-gray-200'
+                    }`}
+                  >
+                    <Text className={`font-black ${grade === "A" ? 'text-white' : 'text-gray-500'}`}>{grade}</Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
+            
             <FormField label="Harvest Date" value="Select date" />
-            <Pressable style={styles.submitButton}>
+            
+            <Pressable className="mt-6 bg-[#2A5C43] rounded-full min-h-[54px] flex-row items-center justify-center gap-2 active:opacity-80">
               <MaterialIcons name="add-task" size={20} color="#ffffff" />
-              <Text style={styles.submitText}>Submit Yield Record</Text>
+              <Text className="text-white font-black text-sm">Submit Yield Record</Text>
             </Pressable>
           </View>
 
-          <View style={styles.chartCard}>
-            <View style={styles.chartHead}>
+          {/* Chart Card */}
+          <View className="flex-[2] bg-white rounded-3xl border border-gray-100 p-6 shadow-sm">
+            <View className="flex-row justify-between items-start mb-6">
               <View>
-                <Text style={styles.sectionTitle}>Earnings Performance</Text>
-                <Text style={styles.muted}>Export revenue trends over the last 6 months</Text>
+                <Text className="text-[#2A5C43] text-2xl font-black">Earnings Performance</Text>
+                <Text className="text-gray-500 font-medium text-sm mt-1">Export revenue trends over the last 6 months</Text>
               </View>
-              <MaterialIcons name="download" size={22} color="#404943" />
+              <Pressable className="bg-[#F9F9F9] p-2.5 rounded-full border border-gray-100">
+                <MaterialIcons name="download" size={20} color="#71717A" />
+              </Pressable>
             </View>
-            <View style={styles.chartArea}>
+            
+            <View className="h-64 flex-row items-end gap-3 px-2 pb-6">
               {bars.map(([month, height]) => (
-                <View key={month} style={styles.barWrap}>
-                  <View style={[styles.bar, { height: `${height}%` }]} />
-                  <Text style={styles.barLabel}>{month}</Text>
+                <View key={month} className="flex-1 h-full justify-end items-center">
+                  <View className="w-full bg-[#2A5C43] rounded-t-lg" style={{ height: `${height}%` }} />
+                  <Text className="text-gray-500 text-[10px] font-black uppercase mt-3">{month}</Text>
                 </View>
               ))}
             </View>
-            <View style={styles.chartFooter}>
+            
+            <View className="border-t border-gray-100 pt-5 flex-row items-center justify-around">
               <Metric label="Average Yield" value="2,380kg" />
-              <View style={styles.divider} />
+              <View className="w-px h-10 bg-gray-200" />
               <Metric label="Growth Rate" value="+18.4%" primary />
             </View>
           </View>
         </View>
 
-        <View style={styles.paymentsCard}>
-          <View style={[styles.paymentsHead, isWide && styles.paymentsHeadWide]}>
+        {/* Payments Card */}
+        <View className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
+          <View className={`bg-[#FAFAFA] p-6 border-b border-gray-100 ${isWide ? 'flex-row justify-between items-center' : 'gap-4'}`}>
             <View>
-              <Text style={styles.sectionTitle}>Recent Payments</Text>
-              <Text style={styles.muted}>Track recent settlements from international buyers</Text>
+              <Text className="text-[#2A5C43] text-2xl font-black">Recent Payments</Text>
+              <Text className="text-gray-500 font-medium text-sm mt-1">Track recent settlements from international buyers</Text>
             </View>
-            <Pressable style={styles.statementButton}>
-              <Text style={styles.statementText}>View All Statement</Text>
+            <Pressable className="self-start bg-white border border-gray-200 rounded-full px-5 py-2.5 shadow-sm active:bg-gray-50">
+              <Text className="text-gray-800 font-black text-xs">View All Statements</Text>
             </Pressable>
           </View>
-          <View style={styles.paymentList}>
-            {payments.map(([id, buyer, quantity, amount, status]) => (
-              <View key={id} style={[styles.paymentRow, isWide && styles.paymentRowWide]}>
-                <Text style={styles.paymentId}>{id}</Text>
-                <Text style={styles.paymentCell}>{buyer}</Text>
-                <Text style={styles.paymentCell}>{quantity}</Text>
-                <Text style={styles.paymentAmount}>{amount}</Text>
-                <Text style={[styles.paymentStatus, status === "Verified" ? styles.verifiedStatus : styles.pendingStatus]}>
-                  {status}
-                </Text>
+          
+          <View className="p-2">
+            {payments.map(([id, buyer, quantity, amount, status], i) => (
+              <View 
+                key={id} 
+                className={`p-4 gap-2 ${isWide ? 'flex-row items-center' : 'flex-col'} ${i !== payments.length - 1 ? 'border-b border-gray-100' : ''}`}
+              >
+                <Text className="flex-1 text-gray-800 font-black text-sm">{id}</Text>
+                <Text className="flex-[1.2] text-gray-600 font-semibold text-sm">{buyer}</Text>
+                <Text className="flex-1 text-gray-500 font-medium text-sm">{quantity}</Text>
+                <Text className="flex-1 text-gray-800 font-black text-sm">{amount}</Text>
+                <View className="flex-1 items-start">
+                  <Text className={`rounded-md px-2.5 py-1 text-[10px] font-black uppercase tracking-widest ${
+                    status === "Verified" ? 'bg-[#A0F4C8] text-[#005236]' : 'bg-[#E6E3D0] text-[#48473A]'
+                  }`}>
+                    {status}
+                  </Text>
+                </View>
               </View>
             ))}
           </View>
         </View>
+
       </View>
     </ScrollView>
   )
@@ -160,15 +215,23 @@ export default function FarmerDashboard() {
 
 function FormField({ label, value, input }: { label: string; value: string; input?: boolean }) {
   return (
-    <View style={styles.formBlock}>
-      <Text style={styles.label}>{label}</Text>
+    <View className="mt-4">
+      <Text className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2 ml-1">
+        {label}
+      </Text>
       {input ? (
-        <TextInput style={styles.inputBox} placeholder={value} placeholderTextColor="#707973" keyboardType="numeric" />
+        <TextInput 
+          className="min-h-[48px] bg-[#F9F9F9] border border-gray-200 rounded-xl px-4 text-gray-800 font-bold" 
+          placeholder={value} 
+          placeholderTextColor="#A1A1AA" 
+          keyboardType="numeric" 
+          style={{ outlineStyle: 'none' } as never}
+        />
       ) : (
-        <View style={styles.inputBox}>
-          <Text style={styles.inputText}>{value}</Text>
-          <MaterialIcons name="expand-more" size={20} color="#707973" />
-        </View>
+        <Pressable className="min-h-[48px] bg-[#F9F9F9] border border-gray-200 rounded-xl px-4 flex-row items-center justify-between active:bg-gray-100">
+          <Text className="text-gray-800 font-bold text-sm">{value}</Text>
+          <MaterialIcons name="expand-more" size={20} color="#71717A" />
+        </Pressable>
       )}
     </View>
   )
@@ -176,106 +239,9 @@ function FormField({ label, value, input }: { label: string; value: string; inpu
 
 function Metric({ label, value, primary }: { label: string; value: string; primary?: boolean }) {
   return (
-    <View style={styles.metric}>
-      <Text style={styles.label}>{label}</Text>
-      <Text style={[styles.metricValue, primary && styles.primaryMetric]}>{value}</Text>
+    <View className="items-center flex-1">
+      <Text className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1">{label}</Text>
+      <Text className={`text-2xl font-black ${primary ? 'text-[#2A5C43]' : 'text-gray-800'}`}>{value}</Text>
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: "#fcf9f8" },
-  content: { paddingBottom: 42 },
-  topBar: {
-    minHeight: 72,
-    paddingHorizontal: 22,
-    borderBottomColor: "#dcebe2",
-    borderBottomWidth: 1,
-    backgroundColor: "#fcf9f8",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 16,
-  },
-  brand: { flexDirection: "row", alignItems: "center", gap: 8 },
-  logo: { width: 22, height: 22 },
-  brandText: { color: "#0f5238", fontSize: 22, fontWeight: "900" },
-  navRow: { flexDirection: "row", gap: 18, alignItems: "center" },
-  navActive: { color: "#0f5238", fontWeight: "900", textDecorationLine: "underline" },
-  navItem: { color: "#605f50", fontWeight: "800" },
-  container: { width: "100%", maxWidth: 1160, alignSelf: "center", padding: 20, gap: 22 },
-  welcome: { gap: 14, marginTop: 12 },
-  welcomeWide: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" },
-  title: { color: "#0f5238", fontSize: 42, lineHeight: 50, fontWeight: "900" },
-  titleMobile: { fontSize: 32, lineHeight: 39 },
-  lead: { color: "#404943", fontSize: 17, lineHeight: 26, marginTop: 6 },
-  verifiedPill: { alignSelf: "flex-start", backgroundColor: "#a0f4c8", borderRadius: 999, paddingHorizontal: 16, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 8 },
-  verifiedText: { color: "#002113", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
-  statsGrid: { gap: 14 },
-  statsGridWide: { flexDirection: "row" },
-  statCard: {
-    flex: 1,
-    minHeight: 160,
-    backgroundColor: "#ffffff",
-    borderColor: "#e0eee5",
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 18,
-    justifyContent: "space-between",
-    shadowColor: "#2d6a4f",
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 3,
-  },
-  rankCard: { backgroundColor: "#0f5238" },
-  statTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  statIcon: { width: 42, height: 42, borderRadius: 10, backgroundColor: "#b1f0ce", alignItems: "center", justifyContent: "center" },
-  rankIcon: { backgroundColor: "#0b3f2b" },
-  statNote: { color: "#0f5238", fontSize: 12, fontWeight: "900" },
-  statLabel: { color: "#707973", fontSize: 12, fontWeight: "900", textTransform: "uppercase", marginTop: 26 },
-  rankLabel: { color: "#d9fbe7" },
-  statValue: { color: "#1b1b1b", fontSize: 32, fontWeight: "900" },
-  rankValue: { color: "#ffffff" },
-  rankSub: { color: "#d9fbe7", fontSize: 14, fontWeight: "500" },
-  mainGrid: { gap: 18 },
-  mainGridWide: { flexDirection: "row" },
-  harvestCard: { flex: 1, backgroundColor: "#ffffff", borderRadius: 16, borderColor: "#e0eee5", borderWidth: 1, padding: 18, shadowColor: "#2d6a4f", shadowOpacity: 0.08, shadowRadius: 18, elevation: 3 },
-  chartCard: { flex: 2, backgroundColor: "#ffffff", borderRadius: 16, borderColor: "#e0eee5", borderWidth: 1, padding: 18, shadowColor: "#2d6a4f", shadowOpacity: 0.08, shadowRadius: 18, elevation: 3 },
-  sectionTitle: { color: "#0f5238", fontSize: 26, lineHeight: 32, fontWeight: "900" },
-  muted: { color: "#707973", lineHeight: 22, marginTop: 4 },
-  formBlock: { marginTop: 14 },
-  label: { color: "#707973", fontSize: 12, fontWeight: "900", textTransform: "uppercase", marginBottom: 8 },
-  inputBox: { minHeight: 48, borderColor: "#bfc9c1", borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between", color: "#1b1b1b" },
-  inputText: { color: "#1b1b1b", fontWeight: "700" },
-  gradeRow: { flexDirection: "row", gap: 8, marginBottom: 2 },
-  gradeButton: { flex: 1, borderColor: "#bfc9c1", borderWidth: 1, borderRadius: 10, paddingVertical: 10, alignItems: "center" },
-  gradeActive: { backgroundColor: "#2d6a4f", borderColor: "#2d6a4f" },
-  gradeText: { color: "#404943", fontWeight: "900" },
-  gradeTextActive: { color: "#ffffff" },
-  submitButton: { marginTop: 18, backgroundColor: "#0f5238", borderRadius: 999, minHeight: 54, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  submitText: { color: "#ffffff", fontWeight: "900" },
-  chartHead: { flexDirection: "row", justifyContent: "space-between", gap: 16, marginBottom: 24 },
-  chartArea: { height: 250, flexDirection: "row", alignItems: "flex-end", gap: 10, paddingHorizontal: 6, paddingBottom: 28 },
-  barWrap: { flex: 1, height: "100%", justifyContent: "flex-end", alignItems: "center" },
-  bar: { width: "100%", borderTopLeftRadius: 10, borderTopRightRadius: 10, backgroundColor: "#2d6a4f" },
-  barLabel: { color: "#707973", fontSize: 11, fontWeight: "900", marginTop: 8 },
-  chartFooter: { borderTopColor: "#e5e2e1", borderTopWidth: 1, paddingTop: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-around" },
-  metric: { alignItems: "center", flex: 1 },
-  metricValue: { color: "#1b1b1b", fontSize: 24, fontWeight: "900" },
-  primaryMetric: { color: "#0f5238" },
-  divider: { width: 1, height: 42, backgroundColor: "#e5e2e1" },
-  paymentsCard: { backgroundColor: "#ffffff", borderRadius: 16, borderColor: "#e0eee5", borderWidth: 1, overflow: "hidden", shadowColor: "#2d6a4f", shadowOpacity: 0.08, shadowRadius: 18, elevation: 3 },
-  paymentsHead: { backgroundColor: "#f6f3f2", padding: 18, gap: 14 },
-  paymentsHeadWide: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  statementButton: { alignSelf: "flex-start", backgroundColor: "#ffffff", borderColor: "#bfc9c1", borderWidth: 1, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 10 },
-  statementText: { color: "#1b1b1b", fontWeight: "900" },
-  paymentList: { padding: 12 },
-  paymentRow: { gap: 8, paddingVertical: 14, borderBottomColor: "#f0eded", borderBottomWidth: 1 },
-  paymentRowWide: { flexDirection: "row", alignItems: "center" },
-  paymentId: { flex: 1, color: "#1b1b1b", fontWeight: "900" },
-  paymentCell: { flex: 1.2, color: "#404943" },
-  paymentAmount: { flex: 1, color: "#1b1b1b", fontWeight: "900" },
-  paymentStatus: { alignSelf: "flex-start", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, fontSize: 11, fontWeight: "900" },
-  verifiedStatus: { backgroundColor: "#a0f4c8", color: "#005236" },
-  pendingStatus: { backgroundColor: "#e6e3d0", color: "#48473a" },
-})

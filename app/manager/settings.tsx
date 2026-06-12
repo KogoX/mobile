@@ -1,127 +1,173 @@
 import { MaterialIcons } from "@expo/vector-icons"
-import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native"
+import { ScrollView, Text, useWindowDimensions, View, Pressable } from "react-native"
 
 import { ManagerFooter, ManagerLayout } from "../../components/ManagerLayout"
 
-const personal = [
-  ["Full Legal Name", "Samuel Kamau Njoroge"],
-  ["Phone Number", "+254 712 345 678"],
-  ["Email Address", "skamau@example.com"],
-  ["Registered Village", "Githunguri, Kiambu County"],
-]
-
-const farm = [
-  ["Total Acreage", "4.5 Acres"],
-  ["Number of Trees", "850 Active"],
-  ["Primary Crop Type", "Hass Avocado"],
-  ["Farm Coordinates", "-1.0333, 36.7833"],
-]
-
-const docs = [
-  ["National ID", "Front and back scan verified by authorities.", "Verified", "badge"],
-  ["Title Deed", "Proof of land ownership currently under review.", "Pending Review", "description"],
-]
+const profileData = {
+  personal: [
+    { label: "Full Legal Name", value: "Samuel Kamau Njoroge" },
+    { label: "Phone Number", value: "+254 712 345 678" },
+    { label: "Email Address", value: "s.kamau@example.com" },
+    { label: "Registered Village / Ward", value: "Githunguri, Kiambu County", fullWidth: true },
+  ],
+  farm: [
+    { label: "Total Acreage", value: "4.5 Acres" },
+    { label: "Number of Trees", value: "850 Active" },
+    { label: "Primary Crop Type", value: "Hass Avocado", fullWidth: true },
+    { label: "Farm Coordinates", value: "-1.0333, 36.7833", isCode: true, fullWidth: true },
+  ],
+  documents: [
+    { 
+      title: "National ID", 
+      copy: "Front and back scan verified by authorities.", 
+      status: "VERIFIED", 
+      icon: "badge" 
+    },
+    { 
+      title: "Title Deed", 
+      copy: "Proof of land ownership currently under review.", 
+      status: "PENDING REVIEW", 
+      icon: "description" 
+    },
+  ]
+}
 
 export default function ManagerSettings() {
   const { width } = useWindowDimensions()
-  const desktop = width >= 980
+  const isDesktop = width >= 980
 
   return (
     <ManagerLayout active="Settings">
-      <ScrollView contentContainerStyle={styles.page}>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Profile & Settings</Text>
-            <Text style={styles.subtitle}>Manage personal information and farm documentation.</Text>
+      <ScrollView className="flex-1 bg-[#FCF9F8]">
+        <View className="p-8 pb-16 w-full max-w-[1100px] self-center">
+          
+          {/* Header Section */}
+          <View className={`flex-row justify-between items-end mb-10 ${!isDesktop && 'flex-col items-start gap-4'}`}>
+            <View>
+              <Text className="text-4xl md:text-5xl font-black text-[#1b1b1b] font-serif mb-2">
+                Profile & Settings
+              </Text>
+              <Text className="text-gray-600 text-[15px]">
+                Manage your personal information and farm documentation.
+              </Text>
+            </View>
+            <Pressable className="bg-[#2A5C43] rounded-full px-6 py-3 flex-row items-center gap-2 active:opacity-80">
+              <MaterialIcons name="edit" size={16} color="#ffffff" />
+              <Text className="text-white font-bold text-sm">Edit Profile</Text>
+            </Pressable>
           </View>
-          <View style={styles.editButton}>
-            <MaterialIcons name="edit" size={17} color="#ffffff" />
-            <Text style={styles.editText}>Edit Profile</Text>
-          </View>
-        </View>
 
-        <View style={[styles.cardGrid, desktop && styles.cardGridDesktop]}>
-          <DetailCard icon="person" title="Personal Details" items={personal} />
-          <DetailCard icon="terrain" title="Farm Details" items={farm} />
-        </View>
-
-        <View style={styles.docsSection}>
-          <View style={styles.sectionHead}>
-            <MaterialIcons name="verified-user" size={22} color="#07543b" />
-            <Text style={styles.sectionTitle}>Compliance Documents</Text>
-          </View>
-          <View style={[styles.docsGrid, desktop && styles.docsGridDesktop]}>
-            {docs.map(([title, copy, status, icon]) => (
-              <View key={title} style={styles.docCard}>
-                <View style={styles.docTop}>
-                  <View style={styles.docIcon}>
-                    <MaterialIcons name={icon as never} size={21} color="#0f8a5f" />
-                  </View>
-                  <Text style={[styles.docStatus, status !== "Verified" && styles.docPending]}>{status}</Text>
+          {/* Details Cards Grid */}
+          <View className={`flex-row gap-6 mb-12 ${!isDesktop && 'flex-col'}`}>
+            
+            {/* Personal Details Card */}
+            <View className="flex-1 bg-white rounded-2xl p-8 shadow-sm border border-gray-100 relative overflow-hidden min-h-[300px]">
+              <View className="flex-row items-center gap-4 border-b border-gray-100 pb-6 mb-6 z-10">
+                <View className="w-12 h-12 rounded-full bg-[#FAFAFA] border border-gray-200 items-center justify-center">
+                  <MaterialIcons name="person-outline" size={24} color="#2A5C43" />
                 </View>
-                <Text style={styles.docTitle}>{title}</Text>
-                <Text style={styles.docCopy}>{copy}</Text>
-                <Text style={styles.docLink}>{status === "Verified" ? "View Document ->" : "Replace File ->"}</Text>
+                <Text className="text-2xl font-black text-[#1b1b1b] font-serif">Personal Details</Text>
               </View>
-            ))}
-          </View>
-        </View>
 
+              <View className="flex-row flex-wrap gap-y-6 z-10">
+                {profileData.personal.map((item) => (
+                  <View key={item.label} className={item.fullWidth ? 'w-full' : 'w-1/2 pr-4'}>
+                    <Text className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-1.5">
+                      {item.label}
+                    </Text>
+                    <Text className="text-gray-800 text-[15px] font-bold">
+                      {item.value}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Decorative Background Icon */}
+              <MaterialIcons name="eco" size={160} color="#F4F9F6" style={{ position: 'absolute', right: -20, bottom: -20, zIndex: 0 }} />
+            </View>
+
+            {/* Farm Details Card */}
+            <View className="flex-1 bg-white rounded-2xl p-8 shadow-sm border border-gray-100 relative overflow-hidden min-h-[300px]">
+              <View className="flex-row items-center gap-4 border-b border-gray-100 pb-6 mb-6 z-10">
+                <View className="w-12 h-12 rounded-full bg-[#FAFAFA] border border-gray-200 items-center justify-center">
+                  <MaterialIcons name="landscape" size={24} color="#2A5C43" />
+                </View>
+                <Text className="text-2xl font-black text-[#1b1b1b] font-serif">Farm Details</Text>
+              </View>
+
+              <View className="flex-row flex-wrap gap-y-6 z-10">
+                {profileData.farm.map((item) => (
+                  <View key={item.label} className={item.fullWidth ? 'w-full' : 'w-1/2 pr-4'}>
+                    <Text className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-1.5">
+                      {item.label}
+                    </Text>
+                    {item.isCode ? (
+                      <View className="bg-[#F9F9F9] border border-gray-200 self-start px-2 py-1 rounded">
+                        <Text className="text-gray-600 text-sm font-medium font-mono tracking-wider">
+                          {item.value}
+                        </Text>
+                      </View>
+                    ) : (
+                      <Text className="text-gray-800 text-[15px] font-bold">
+                        <Text className="font-black text-base">{item.value.split(' ')[0]}</Text> {item.value.substring(item.value.indexOf(' ') + 1)}
+                      </Text>
+                    )}
+                  </View>
+                ))}
+              </View>
+
+              {/* Decorative Background Icon */}
+              <MaterialIcons name="agriculture" size={160} color="#F4F9F6" style={{ position: 'absolute', right: -20, bottom: -20, zIndex: 0 }} />
+            </View>
+
+          </View>
+
+          {/* Compliance Documents Section */}
+          <View>
+            <View className="flex-row items-center gap-3 mb-6">
+              <MaterialIcons name="verified" size={28} color="#2A5C43" />
+              <Text className="text-3xl md:text-4xl font-black text-[#1b1b1b] font-serif">
+                Compliance Documents
+              </Text>
+            </View>
+
+            <View className={`flex-row gap-6 ${!isDesktop && 'flex-col'}`}>
+              {profileData.documents.map((doc) => (
+                <View key={doc.title} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 w-full md:w-[320px] justify-between min-h-[200px]">
+                  
+                  <View>
+                    <View className="flex-row justify-between items-start mb-6">
+                      <View className="w-10 h-10 rounded-full bg-[#EAF5F0] items-center justify-center">
+                        <MaterialIcons name={doc.icon as never} size={20} color="#2A5C43" />
+                      </View>
+                      <View className={`px-3 py-1.5 rounded-full ${doc.status === 'VERIFIED' ? 'bg-[#D1F4E0]' : 'bg-[#EAEAEA]'}`}>
+                        <Text className={`text-[10px] font-black tracking-widest ${doc.status === 'VERIFIED' ? 'text-[#0F5238]' : 'text-gray-500'}`}>
+                          {doc.status}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <Text className="text-xl font-black text-[#1b1b1b] font-serif mb-2">{doc.title}</Text>
+                    <Text className="text-gray-500 text-[13px] leading-relaxed pr-4">
+                      {doc.copy}
+                    </Text>
+                  </View>
+
+                  <Pressable className="flex-row items-center gap-1.5 mt-6 border-t border-gray-100 pt-4 active:opacity-60">
+                    <Text className="text-[#2A5C43] font-black text-xs">
+                      {doc.status === 'VERIFIED' ? 'View Document' : 'Replace File'}
+                    </Text>
+                    <MaterialIcons name={doc.status === 'VERIFIED' ? 'arrow-forward' : 'file-upload'} size={14} color="#2A5C43" />
+                  </Pressable>
+
+                </View>
+              ))}
+            </View>
+          </View>
+
+        </View>
         <ManagerFooter />
       </ScrollView>
     </ManagerLayout>
   )
 }
-
-function DetailCard({ icon, title, items }: { icon: string; title: string; items: string[][] }) {
-  return (
-    <View style={styles.detailCard}>
-      <View style={styles.cardTitleRow}>
-        <View style={styles.cardIcon}>
-          <MaterialIcons name={icon as never} size={20} color="#0f8a5f" />
-        </View>
-        <Text style={styles.cardTitle}>{title}</Text>
-      </View>
-      <View style={styles.itemGrid}>
-        {items.map(([label, value]) => (
-          <View key={label} style={styles.item}>
-            <Text style={styles.itemLabel}>{label}</Text>
-            <Text style={styles.itemValue}>{value}</Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  )
-}
-
-const styles = StyleSheet.create({
-  page: { padding: 32, backgroundColor: "#fcf9f8" },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" },
-  title: { color: "#163c2d", fontSize: 30, fontWeight: "900" },
-  subtitle: { color: "#66736d", marginTop: 6, fontWeight: "700" },
-  editButton: { backgroundColor: "#07543b", borderRadius: 22, paddingHorizontal: 18, paddingVertical: 11, flexDirection: "row", alignItems: "center", gap: 8 },
-  editText: { color: "#ffffff", fontWeight: "900" },
-  cardGrid: { gap: 20, marginTop: 34 },
-  cardGridDesktop: { flexDirection: "row" },
-  detailCard: { flex: 1, minWidth: 300, minHeight: 250, backgroundColor: "#ffffff", borderRadius: 8, borderWidth: 1, borderColor: "#ebe6e4", padding: 26 },
-  cardTitleRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  cardIcon: { width: 34, height: 34, borderRadius: 999, backgroundColor: "#e5f6ec", alignItems: "center", justifyContent: "center" },
-  cardTitle: { color: "#07543b", fontSize: 20, fontWeight: "900" },
-  itemGrid: { marginTop: 24, gap: 18 },
-  item: { gap: 5 },
-  itemLabel: { color: "#5f6b65", fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
-  itemValue: { color: "#221816", fontSize: 15, fontWeight: "900" },
-  docsSection: { marginTop: 34 },
-  sectionHead: { flexDirection: "row", alignItems: "center", gap: 10 },
-  sectionTitle: { color: "#07543b", fontSize: 24, fontWeight: "900" },
-  docsGrid: { gap: 16, marginTop: 18 },
-  docsGridDesktop: { flexDirection: "row" },
-  docCard: { width: 270, maxWidth: "100%", backgroundColor: "#ffffff", borderRadius: 8, borderWidth: 1, borderColor: "#ebe6e4", padding: 22 },
-  docTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 },
-  docIcon: { width: 40, height: 40, borderRadius: 999, backgroundColor: "#e5f6ec", alignItems: "center", justifyContent: "center" },
-  docStatus: { color: "#0f8a5f", backgroundColor: "#d5f8df", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, fontSize: 10, fontWeight: "900", overflow: "hidden" },
-  docPending: { color: "#5f625f", backgroundColor: "#f1eee8" },
-  docTitle: { color: "#163c2d", fontSize: 16, fontWeight: "900", marginTop: 18 },
-  docCopy: { color: "#53675d", marginTop: 8, lineHeight: 19, fontWeight: "700" },
-  docLink: { color: "#07543b", marginTop: 16, fontWeight: "900" },
-})

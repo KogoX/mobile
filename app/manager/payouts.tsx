@@ -1,24 +1,42 @@
 import { MaterialIcons } from "@expo/vector-icons"
-import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native"
+import { ScrollView, Text, useWindowDimensions, View, Pressable, TextInput } from "react-native"
 
 import { ManagerButton, ManagerFooter, ManagerLayout } from "../../components/ManagerLayout"
 
-const cards = [
-  ["Current Season Earnings", "$45,250.00", "+12.5% from last season", "account-balance-wallet", "#2d6a4f"],
-  ["Pending Payments", "$3,840.50", "Expected clearance in 3-5 business days", "pending-actions", "#005337"],
-  ["Total Disbursed", "$124,500.00", "Lifetime earnings since 2021", "check-circle", "#0f5238"],
+const summaryCards = [
+  {
+    title: "Current Season Earnings",
+    value: "$45,250.00",
+    hint: "+12.5% from last season",
+    icon: "account-balance-wallet",
+    color: "text-[#0F5238]"
+  },
+  {
+    title: "Pending Payments",
+    value: "$3,840.50",
+    hint: "Expected clearance in 3-5 business days",
+    icon: "pending-actions",
+    color: "text-[#0F5238]"
+  },
+  {
+    title: "Total Disbursed",
+    value: "$124,500.00",
+    hint: "Lifetime earnings since 2021",
+    icon: "check-circle-outline",
+    color: "text-[#0F5238]"
+  },
 ]
 
-const rows = [
-  ["Oct 24, 2024", "#ORD-7829", "EuroFresh Imports Ltd.", "1,250", "$4,500.00", "Disbursed"],
-  ["Oct 21, 2024", "#ORD-7815", "Global AgriCorp", "850", "$3,060.00", "Processing"],
-  ["Oct 18, 2024", "#ORD-7790", "Nordic Organics", "2,100", "$7,560.00", "Disbursed"],
-  ["Oct 15, 2024", "#ORD-7742", "Sunshine Produce", "450", "$1,620.00", "Flagged"],
+const transactions = [
+  { date: "Oct 24, 2024", order: "#ORD-7829", buyer: "EuroFresh Imports Ltd.", qty: "1,250", amount: "$4,500.00", status: "Disbursed" },
+  { date: "Oct 21, 2024", order: "#ORD-7815", buyer: "Global AgriCorp", qty: "850", amount: "$3,060.00", status: "Processing" },
+  { date: "Oct 18, 2024", order: "#ORD-7790", buyer: "Nordic Organics", qty: "2,100", amount: "$7,560.00", status: "Disbursed" },
+  { date: "Oct 15, 2024", order: "#ORD-7742", buyer: "Sunshine Produce", qty: "450", amount: "$1,620.00", status: "Flagged" },
 ]
 
 export default function ManagerPayouts() {
   const { width } = useWindowDimensions()
-  const desktop = width >= 980
+  const isDesktop = width >= 980
 
   return (
     <ManagerLayout
@@ -27,62 +45,139 @@ export default function ManagerPayouts() {
       subtitle="Financial overview and transaction history for the current season."
       action={<ManagerButton icon="file-download" label="Download Statement" variant="outline" />}
     >
-      <ScrollView contentContainerStyle={styles.page}>
-        <View style={[styles.cardGrid, desktop && styles.cardGridDesktop]}>
-          {cards.map(([title, value, hint, icon, color]) => (
-            <View key={title} style={styles.moneyCard}>
-              <View style={styles.cardTop}>
-                <Text style={styles.cardTitle}>{title}</Text>
-                <View style={styles.cardIcon}><MaterialIcons name={icon as never} size={24} color={color} /></View>
-              </View>
-              <Text style={[styles.moneyValue, { color }]}>{value}</Text>
-              <Text style={styles.moneyHint}>{hint}</Text>
-              <View style={styles.leafMark}><MaterialIcons name="eco" size={84} color="#2d6a4f" /></View>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.transactions}>
-          <View style={styles.transactionHead}>
-            <Text style={styles.sectionTitle}>Recent Transactions</Text>
-            <View style={styles.search}>
-              <MaterialIcons name="search" size={18} color="#707973" />
-              <Text style={styles.searchText}>Search orders...</Text>
-              <MaterialIcons name="filter-list" size={20} color="#404943" />
+      <ScrollView className="flex-1 bg-[#FCF9F8]">
+        <View className="p-8 pb-16 w-full max-w-[1100px] self-center">
+          
+          {/* Header Section */}
+          <View className={`flex-row justify-between items-end mb-10 ${!isDesktop && 'flex-col items-start gap-4'}`}>
+            <View>
+              <Text className="text-4xl md:text-5xl font-black text-[#1b1b1b] font-serif mb-2">
+                Payments Dashboard
+              </Text>
+              <Text className="text-gray-600 text-[15px]">
+                Financial overview and transaction history for the current season.
+              </Text>
             </View>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.table}>
-              <View style={styles.tableHead}>
-                <Text style={styles.dateHead}>Date</Text>
-                <Text style={styles.orderHead}>Order ID</Text>
-                <Text style={styles.buyerHead}>Buyer</Text>
-                <Text style={styles.qtyHead}>Quantity (kg)</Text>
-                <Text style={styles.amountHead}>Amount</Text>
-                <Text style={styles.statusHead}>Status</Text>
-                <Text style={styles.actionHead}> </Text>
-              </View>
-              {rows.map(([date, order, buyer, qty, amount, status]) => (
-                <View key={order} style={styles.row}>
-                  <Text style={styles.dateCell}>{date}</Text>
-                  <Text style={styles.orderCell}>{order}</Text>
-                  <Text style={styles.buyerCell}>{buyer}</Text>
-                  <Text style={styles.qtyCell}>{qty}</Text>
-                  <Text style={styles.amountCell}>{amount}</Text>
-                  <View style={[styles.status, status === "Processing" && styles.processing, status === "Flagged" && styles.flagged]}>
-                    <Text style={[styles.statusText, status === "Flagged" && styles.flaggedText]}>{status}</Text>
+
+          {/* Summary Cards */}
+          <View className={`flex-row gap-6 mb-10 ${!isDesktop && 'flex-col'}`}>
+            {summaryCards.map((card) => (
+              <View 
+                key={card.title} 
+                className="flex-1 bg-white rounded-2xl p-6 shadow-sm border border-gray-100 relative overflow-hidden min-h-[180px] justify-between"
+              >
+                <View className="flex-row justify-between items-start gap-4">
+                  <Text className="text-2xl font-black text-[#1b1b1b] font-serif flex-1 leading-8">
+                    {card.title}
+                  </Text>
+                  <View className="w-10 h-10 rounded-full bg-[#EAF5F0] items-center justify-center">
+                    <MaterialIcons name={card.icon as never} size={20} color="#2D6A4F" />
                   </View>
-                  <View style={styles.actionCell}><MaterialIcons name="more-vert" size={20} color="#2d6a4f" /></View>
                 </View>
-              ))}
+
+                <View className="mt-4">
+                  <Text className={`text-4xl font-black font-serif ${card.color}`}>
+                    {card.value}
+                  </Text>
+                  <Text className="text-gray-500 text-[13px] mt-2 font-medium">
+                    {card.hint}
+                  </Text>
+                </View>
+
+                {/* Decorative Bottom Right Watermark (Water drop shape imitation) */}
+                <View className="absolute -bottom-8 -right-8 w-24 h-24 bg-[#F4F9F6] rounded-tl-[60px] rounded-br-[60px] rounded-tr-[60px] rounded-bl-lg transform rotate-45 z-[-1]" />
+              </View>
+            ))}
+          </View>
+
+          {/* Recent Transactions Table */}
+          <View className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-10">
+            
+            {/* Table Header / Search */}
+            <View className="flex-row justify-between items-center p-6 border-b border-gray-100 flex-wrap gap-4">
+              <Text className="text-3xl font-black text-[#1b1b1b] font-serif">
+                Recent Transactions
+              </Text>
+              
+              <View className="flex-row items-center gap-4">
+                <View className="min-w-[240px] border border-gray-200 rounded-full px-4 flex-row items-center gap-2 h-10 bg-white">
+                  <MaterialIcons name="search" size={18} color="#A1A1AA" />
+                  <TextInput 
+                    className="flex-1 text-gray-800 text-[13px] font-medium"
+                    placeholder="Search orders..."
+                    placeholderTextColor="#A1A1AA"
+                    style={{ outlineStyle: 'none' } as never}
+                  />
+                </View>
+                <Pressable className="active:opacity-60">
+                  <MaterialIcons name="filter-list" size={22} color="#4A4A4A" />
+                </Pressable>
+              </View>
             </View>
-          </ScrollView>
-          <View style={styles.pagination}>
-            <Text style={styles.pageMeta}>Showing 1-4 of 24 transactions</Text>
-            <View style={styles.pages}>
-              <Text style={styles.pageMuted}>‹</Text>
-              <Text style={styles.pageNext}>›</Text>
+
+            {/* Scrollable Table Area */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View className="min-w-[950px] w-full">
+                
+                {/* Column Headers */}
+                <View className="flex-row bg-[#FAFAF9]/50 border-b border-gray-100 py-5 px-6">
+                  <Text className="w-[140px] text-gray-500 text-[10px] font-black uppercase tracking-widest">Date</Text>
+                  <Text className="w-[140px] text-gray-500 text-[10px] font-black uppercase tracking-widest">Order ID</Text>
+                  <Text className="w-[200px] text-gray-500 text-[10px] font-black uppercase tracking-widest">Buyer</Text>
+                  <Text className="w-[120px] text-gray-500 text-[10px] font-black uppercase tracking-widest text-center">Quantity (kg)</Text>
+                  <Text className="w-[120px] text-gray-500 text-[10px] font-black uppercase tracking-widest text-right">Amount</Text>
+                  <Text className="w-[130px] text-gray-500 text-[10px] font-black uppercase tracking-widest text-center">Status</Text>
+                  <Text className="w-[60px]"></Text>
+                </View>
+
+                {/* Rows */}
+                {transactions.map((row) => (
+                  <View key={row.order} className="flex-row items-center py-5 px-6 border-b border-gray-50 hover:bg-gray-50">
+                    <Text className="w-[140px] text-gray-600 text-[13px] font-medium">{row.date}</Text>
+                    <Text className="w-[140px] text-gray-800 text-[13px] font-black tracking-wide">{row.order}</Text>
+                    <Text className="w-[200px] text-gray-600 text-[13px] font-medium">{row.buyer}</Text>
+                    <Text className="w-[120px] text-gray-800 text-[13px] font-medium text-center">{row.qty}</Text>
+                    <Text className="w-[120px] text-gray-800 text-[13px] font-black text-right">{row.amount}</Text>
+                    
+                    <View className="w-[130px] items-center">
+                      <View className={`px-4 py-1.5 rounded-full ${
+                        row.status === 'Disbursed' ? 'bg-[#D1F4E0]' : 
+                        row.status === 'Processing' ? 'bg-[#EAEAEA]' : 
+                        'bg-[#FFDAD6]'
+                      }`}>
+                        <Text className={`text-[10px] font-black uppercase tracking-widest ${
+                          row.status === 'Disbursed' ? 'text-[#0F5238]' : 
+                          row.status === 'Processing' ? 'text-[#4A4A4A]' : 
+                          'text-[#BA1A1A]'
+                        }`}>
+                          {row.status}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <Pressable className="w-[60px] items-end active:opacity-50">
+                      <MaterialIcons name="more-vert" size={20} color="#2D6A4F" />
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
+
+            {/* Pagination */}
+            <View className="flex-row justify-between items-center p-6 bg-white flex-wrap gap-4 border-t border-gray-50">
+              <Text className="text-gray-500 text-[13px] font-medium">Showing 1-4 of 24 transactions</Text>
+              
+              <View className="flex-row items-center gap-2">
+                <Pressable className="w-8 h-8 border border-gray-200 rounded-lg items-center justify-center active:bg-gray-50">
+                  <MaterialIcons name="chevron-left" size={18} color="#A1A1AA" />
+                </Pressable>
+                <Pressable className="w-8 h-8 border border-gray-200 rounded-lg items-center justify-center active:bg-gray-50">
+                  <MaterialIcons name="chevron-right" size={18} color="#4A4A4A" />
+                </Pressable>
+              </View>
             </View>
+
           </View>
         </View>
         <ManagerFooter />
@@ -90,47 +185,3 @@ export default function ManagerPayouts() {
     </ManagerLayout>
   )
 }
-
-const styles = StyleSheet.create({
-  page: { padding: 32, backgroundColor: "#fcf9f8" },
-  cardGrid: { gap: 24 },
-  cardGridDesktop: { flexDirection: "row" },
-  moneyCard: { flex: 1, minWidth: 260, minHeight: 210, backgroundColor: "#ffffff", borderRadius: 12, borderWidth: 1, borderColor: "#eae7e7", padding: 24, overflow: "hidden", shadowColor: "#2d6a4f", shadowOpacity: 0.06, shadowRadius: 24 },
-  cardTop: { flexDirection: "row", justifyContent: "space-between", gap: 14 },
-  cardTitle: { flex: 1, color: "#1b1b1b", fontSize: 26, fontWeight: "900", fontFamily: "serif", lineHeight: 32 },
-  cardIcon: { width: 42, height: 42, borderRadius: 999, backgroundColor: "rgba(149,212,179,0.2)", alignItems: "center", justifyContent: "center" },
-  moneyValue: { fontSize: 40, fontWeight: "900", marginTop: 16 },
-  moneyHint: { color: "#605f50", fontSize: 16, marginTop: 8 },
-  leafMark: { position: "absolute", right: -18, bottom: -20, opacity: 0.05 },
-  transactions: { marginTop: 64, backgroundColor: "#ffffff", borderRadius: 12, overflow: "hidden", shadowColor: "#2d6a4f", shadowOpacity: 0.06, shadowRadius: 24 },
-  transactionHead: { padding: 24, flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 18, flexWrap: "wrap" },
-  sectionTitle: { color: "#1b1b1b", fontSize: 36, fontWeight: "900", fontFamily: "serif" },
-  search: { minWidth: 250, borderRadius: 999, borderWidth: 1, borderColor: "#eae7e7", paddingHorizontal: 14, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 8 },
-  searchText: { flex: 1, color: "#707973" },
-  table: { minWidth: 930 },
-  tableHead: { flexDirection: "row", backgroundColor: "#f6f3f2", borderTopWidth: 1, borderBottomWidth: 1, borderColor: "#eae7e7" },
-  dateHead: { width: 140, padding: 24, color: "#404943", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
-  orderHead: { width: 130, padding: 24, color: "#404943", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
-  buyerHead: { width: 220, padding: 24, color: "#404943", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
-  qtyHead: { width: 130, padding: 24, color: "#404943", fontSize: 12, fontWeight: "900", textTransform: "uppercase", textAlign: "right" },
-  amountHead: { width: 130, padding: 24, color: "#404943", fontSize: 12, fontWeight: "900", textTransform: "uppercase", textAlign: "right" },
-  statusHead: { width: 120, padding: 24, color: "#404943", fontSize: 12, fontWeight: "900", textTransform: "uppercase", textAlign: "center" },
-  actionHead: { width: 60, padding: 24 },
-  row: { minHeight: 66, flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: "#eae7e7" },
-  dateCell: { width: 140, paddingHorizontal: 24, color: "#605f50" },
-  orderCell: { width: 130, paddingHorizontal: 24, color: "#1b1b1b", fontWeight: "800" },
-  buyerCell: { width: 220, paddingHorizontal: 24, color: "#1b1b1b" },
-  qtyCell: { width: 130, paddingHorizontal: 24, color: "#1b1b1b", textAlign: "right" },
-  amountCell: { width: 130, paddingHorizontal: 24, color: "#1b1b1b", textAlign: "right", fontWeight: "800" },
-  status: { width: 96, marginLeft: 12, borderRadius: 999, backgroundColor: "#a0f4c8", alignItems: "center", paddingVertical: 6 },
-  processing: { backgroundColor: "#e5e2e1" },
-  flagged: { backgroundColor: "#ffdad6" },
-  statusText: { color: "#005236", fontSize: 11, fontWeight: "900" },
-  flaggedText: { color: "#93000a" },
-  actionCell: { width: 60, alignItems: "center" },
-  pagination: { padding: 24, flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" },
-  pageMeta: { color: "#404943", fontSize: 13 },
-  pages: { flexDirection: "row", gap: 10 },
-  pageMuted: { width: 36, height: 36, borderRadius: 8, borderWidth: 1, borderColor: "#bfc9c1", color: "#707973", textAlign: "center", paddingTop: 7, overflow: "hidden" },
-  pageNext: { width: 36, height: 36, borderRadius: 8, borderWidth: 1, borderColor: "#bfc9c1", color: "#1b1b1b", textAlign: "center", paddingTop: 7, overflow: "hidden" },
-})
