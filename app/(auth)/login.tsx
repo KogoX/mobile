@@ -10,24 +10,61 @@ import {
   useWindowDimensions,
   View,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  ActivityIndicator
 } from "react-native"
+import AsyncStorage from "@react-native-async-storage/async-storage"
 
 type Role = "farmer" | "manager" | "buyer"
 
 const roles: Role[] = ["farmer", "manager", "buyer"]
 const logo = require("../../assets/cemslogo.svg")
 
+const API_URL = "http://localhost:5000/api"
+
 export default function LoginScreen() {
   const router = useRouter()
   const { width } = useWindowDimensions()
   const [role, setRole] = useState<Role>("farmer")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
   const [remember, setRemember] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
   
-  // Adjusted for Tailwind layout responsiveness
   const isWide = width >= 760
 
-  const signIn = () => router.replace(`/${role}`)
+  const signIn = async () => {
+    if (!email || !password) {
+      setError("Please fill all fields");
+      return;
+    }
+    setLoading(true);
+    setError("");
+
+    try {
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Login failed");
+      }
+
+      await AsyncStorage.setItem("token", data.token);
+      await AsyncStorage.setItem("user", JSON.stringify(data.user));
+
+      // Always route to their database-assigned role rather than the selected tab
+      router.replace(`/${data.user.role}`);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <KeyboardAvoidingView 
@@ -97,18 +134,27 @@ export default function LoginScreen() {
             </View>
           </View>
 
+          {/* Error Message */}
+          {error ? (
+            <Text className="text-red-500 text-center mb-4 font-medium">{error}</Text>
+          ) : null}
+
           {/* Inputs */}
           <Field
             label="Email Address"
             icon="mail-outline"
             placeholder="Enter your email"
             keyboardType="email-address"
+            value={email}
+            onChangeText={setEmail}
           />
           <Field 
             label="Password" 
             icon="lock-outline" 
             placeholder="Enter your password" 
             secureTextEntry 
+            value={password}
+            onChangeText={setPassword}
           />
 
           {/* Options Row */}
@@ -133,11 +179,13 @@ export default function LoginScreen() {
 
           {/* Submit Button */}
           <Pressable 
-            className="bg-[#2A5C43] rounded-xl py-4 shadow-md mb-8 active:opacity-80" 
+            className={`bg-[#2A5C43] rounded-xl py-4 shadow-md mb-8 active:opacity-80 flex-row justify-center items-center ${loading ? 'opacity-70' : ''}`} 
             onPress={signIn}
+            disabled={loading}
           >
+            {loading ? <ActivityIndicator color="#fff" style={{ marginRight: 8 }} /> : null}
             <Text className="text-white text-center font-bold text-base">
-              Sign In
+              {loading ? "Signing In..." : "Sign In"}
             </Text>
           </Pressable>
 
@@ -165,12 +213,16 @@ function Field({
   placeholder,
   secureTextEntry,
   keyboardType,
+  value,
+  onChangeText
 }: {
   label: string
   icon: keyof typeof MaterialIcons.glyphMap
   placeholder: string
   secureTextEntry?: boolean
   keyboardType?: "default" | "email-address"
+  value: string
+  onChangeText: (text: string) => void
 }) {
   return (
     <View className="mb-4">
@@ -187,6 +239,8 @@ function Field({
           keyboardType={keyboardType}
           autoCapitalize="none"
           style={{ outlineStyle: "none" } as never}
+          value={value}
+          onChangeText={onChangeText}
         />
       </View>
     </View>
