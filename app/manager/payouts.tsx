@@ -1,5 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons"
 import { ScrollView, Text, useWindowDimensions, View, Pressable, TextInput } from "react-native"
+import { useState, useEffect } from "react"
 
 import { ManagerButton, ManagerFooter, ManagerLayout } from "../../components/ManagerLayout"
 
@@ -27,16 +28,18 @@ const summaryCards = [
   },
 ]
 
-const transactions = [
-  { date: "Oct 24, 2024", order: "#ORD-7829", buyer: "EuroFresh Imports Ltd.", qty: "1,250", amount: "$4,500.00", status: "Disbursed" },
-  { date: "Oct 21, 2024", order: "#ORD-7815", buyer: "Global AgriCorp", qty: "850", amount: "$3,060.00", status: "Processing" },
-  { date: "Oct 18, 2024", order: "#ORD-7790", buyer: "Nordic Organics", qty: "2,100", amount: "$7,560.00", status: "Disbursed" },
-  { date: "Oct 15, 2024", order: "#ORD-7742", buyer: "Sunshine Produce", qty: "450", amount: "$1,620.00", status: "Flagged" },
-]
-
 export default function ManagerPayouts() {
   const { width } = useWindowDimensions()
   const isDesktop = width >= 980
+
+  const [transactions, setTransactions] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch("http://localhost:5000/api/payments")
+      .then(res => res.json())
+      .then(data => setTransactions(data))
+      .catch(err => console.error(err));
+  }, []);
 
   return (
     <ManagerLayout
@@ -133,22 +136,22 @@ export default function ManagerPayouts() {
 
                 {/* Rows */}
                 {transactions.map((row) => (
-                  <View key={row.order} className="flex-row items-center py-5 px-6 border-b border-gray-50 hover:bg-gray-50">
-                    <Text className="w-[140px] text-gray-600 text-[13px] font-medium">{row.date}</Text>
-                    <Text className="w-[140px] text-gray-800 text-[13px] font-black tracking-wide">{row.order}</Text>
+                  <View key={row.order || row.id} className="flex-row items-center py-5 px-6 border-b border-gray-50 hover:bg-gray-50">
+                    <Text className="w-[140px] text-gray-600 text-[13px] font-medium">{row.date || "Recent"}</Text>
+                    <Text className="w-[140px] text-gray-800 text-[13px] font-black tracking-wide">{row.order || row.id}</Text>
                     <Text className="w-[200px] text-gray-600 text-[13px] font-medium">{row.buyer}</Text>
-                    <Text className="w-[120px] text-gray-800 text-[13px] font-medium text-center">{row.qty}</Text>
+                    <Text className="w-[120px] text-gray-800 text-[13px] font-medium text-center">{row.qty || row.quantity}</Text>
                     <Text className="w-[120px] text-gray-800 text-[13px] font-black text-right">{row.amount}</Text>
                     
                     <View className="w-[130px] items-center">
                       <View className={`px-4 py-1.5 rounded-full ${
-                        row.status === 'Disbursed' ? 'bg-[#D1F4E0]' : 
-                        row.status === 'Processing' ? 'bg-[#EAEAEA]' : 
+                        row.status === 'Disbursed' || row.status === 'Verified' ? 'bg-[#D1F4E0]' : 
+                        row.status === 'Processing' || row.status === 'Pending' ? 'bg-[#EAEAEA]' : 
                         'bg-[#FFDAD6]'
                       }`}>
                         <Text className={`text-[10px] font-black uppercase tracking-widest ${
-                          row.status === 'Disbursed' ? 'text-[#0F5238]' : 
-                          row.status === 'Processing' ? 'text-[#4A4A4A]' : 
+                          row.status === 'Disbursed' || row.status === 'Verified' ? 'text-[#0F5238]' : 
+                          row.status === 'Processing' || row.status === 'Pending' ? 'text-[#4A4A4A]' : 
                           'text-[#BA1A1A]'
                         }`}>
                           {row.status}

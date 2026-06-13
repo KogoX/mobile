@@ -1,13 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
 import { Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native"
-
-const orders = [
-  { id: "#ORD-7721", status: "Processing", coop: "Mount Kenya Organic", produce: "Grade A Hass Avocados", quantity: "20.5 Tons", amount: "$25,625.00", date: "Oct 24, 2024" },
-  { id: "#ORD-7690", status: "In Transit", coop: "Aberdare Highlands", produce: "Premium Jumbo Fuerte", quantity: "15.2 Tons", amount: "$18,440.00", date: "Oct 20, 2024" },
-  { id: "#ORD-7512", status: "Delivered", coop: "Murang'a Growers", produce: "Export Grade Hass", quantity: "32.0 Tons", amount: "$41,000.00", date: "Oct 12, 2024" },
-  { id: "#ORD-7405", status: "Cancelled", coop: "Rift Valley Orchards", produce: "Grade B Hass", quantity: "10.0 Tons", amount: "$12,000.00", date: "Sep 28, 2024" },
-] as const
+import { useState, useEffect } from "react"
 
 const statusStyles: Record<string, { bg: string; text: string; dot: string }> = {
   Processing: { bg: "bg-[#FEF3C7]", text: "text-[#92400E]", dot: "bg-[#D97706]" },
@@ -20,6 +14,15 @@ export default function BuyerOrders() {
   const router = useRouter()
   const { width } = useWindowDimensions()
   const isWide = width >= 780
+
+  const [orders, setOrders] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch("http://localhost:5000/api/orders")
+      .then(res => res.json())
+      .then(data => setOrders(data))
+      .catch(err => console.error(err));
+  }, []);
 
   return (
     <ScrollView className="flex-1 bg-[#FCF9F8]" contentContainerStyle={{ paddingBottom: 40 }}>
@@ -64,7 +67,7 @@ export default function BuyerOrders() {
         {/* Detailed Orders Feed List */}
         <View className="gap-5">
           {orders.map((order) => {
-            const currentStyle = statusStyles[order.status]
+            const currentStyle = statusStyles[order.status] || statusStyles["Processing"];
             
             return (
               <View key={order.id} className="bg-white border border-[#E9EDE9] rounded-2xl p-5 shadow-sm">
@@ -85,10 +88,10 @@ export default function BuyerOrders() {
 
                 {/* Metrics Context Details Information Block Grid */}
                 <View className={`gap-y-4 gap-x-2 mb-4 ${isWide ? 'flex-row flex-wrap justify-between' : 'flex-col'}`}>
-                  <DetailItem label="Cooperative" value={order.coop} isBold isWide={isWide} />
-                  <DetailItem label="Produce Type" value={order.produce} isWide={isWide} />
+                  <DetailItem label="Buyer/Cooperative" value={order.buyer || order.coop || "N/A"} isBold isWide={isWide} />
+                  <DetailItem label="Produce Type" value={order.produce || "Grade A Hass Avocados"} isWide={isWide} />
                   <DetailItem label="Quantity" value={order.quantity} isWide={isWide} />
-                  <DetailItem label="Total Amount" value={order.amount} isPrice isWide={isWide} />
+                  <DetailItem label="Total Amount" value={order.amount || "TBD"} isPrice isWide={isWide} />
                   <DetailItem label="Order Date" value={order.date} isWide={isWide} />
                 </View>
 

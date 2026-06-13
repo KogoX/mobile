@@ -9,6 +9,7 @@ import {
   SafeAreaView,
   Platform,
 } from "react-native"
+import { useState, useEffect } from "react"
 
 const logo = require("../../assets/cemslogo.svg")
 
@@ -28,13 +29,15 @@ const bars = [
   { month: "Jun", height: 85, color: "bg-[#0F5238]" },
 ]
 
-const payments = [
-  { order: "ORD-2024-892", buyer: "Global Green Exporters", qty: "1,200 kg", amount: "KES 36,000", status: "Verified" },
-  { order: "ORD-2024-885", buyer: "EuroHarvest GmbH", qty: "850 kg", amount: "KES 25,500", status: "Pending" },
-  { order: "ORD-2024-870", buyer: "AvoDirect UK Ltd.", qty: "2,400 kg", amount: "KES 72,000", status: "Verified" },
-]
+export default function ManagerDashboardMobile() {
+  const [payments, setPayments] = useState<any[]>([]);
 
-export default function FarmerDashboardMobile() {
+  useEffect(() => {
+    fetch("http://localhost:5000/api/payments")
+      .then(res => res.json())
+      .then(data => setPayments(data))
+      .catch(err => console.error(err));
+  }, []);
   return (
     <SafeAreaView className="flex-1 bg-[#FCF9F8]">
       
@@ -198,11 +201,11 @@ export default function FarmerDashboardMobile() {
               {payments.map((payment, i) => (
                 <View key={i} className={`flex-row items-center py-2 ${i !== payments.length - 1 ? 'border-b border-gray-50 pb-4' : ''}`}>
                   <View className="flex-[1.2]">
-                    <Text className="text-gray-800 font-black text-[11px]">{payment.order.split('-')[0]}-</Text>
-                    <Text className="text-gray-800 font-black text-[11px]">{payment.order.split('-').slice(1).join('-')}</Text>
+                    <Text className="text-gray-800 font-black text-[11px]">{(payment.order || payment.id)?.split('-')[0]}-</Text>
+                    <Text className="text-gray-800 font-black text-[11px]">{(payment.order || payment.id)?.split('-').slice(1).join('-')}</Text>
                   </View>
                   <Text className="flex-[1.5] text-gray-600 font-bold text-[11px] pr-2">{payment.buyer}</Text>
-                  <Text className="flex-[0.8] text-gray-500 font-medium text-[11px]">{payment.qty}</Text>
+                  <Text className="flex-[0.8] text-gray-500 font-medium text-[11px]">{payment.qty || payment.quantity}</Text>
                   <View className="flex-1 items-end">
                     <Text className="text-gray-800 font-black text-[11px] mb-1">{payment.amount}</Text>
                     <View className={`px-2 py-0.5 rounded text-center ${payment.status === 'Verified' ? 'bg-[#D1F4E0]' : 'bg-[#FEF3C7]'}`}>

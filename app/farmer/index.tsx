@@ -8,6 +8,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native"
+import { useState, useEffect } from "react"
 
 const logo = require("../../assets/cemslogo.svg")
 
@@ -27,15 +28,18 @@ const bars = [
   ["Jun", 80],
 ] as const
 
-const payments = [
-  ["ORD-2024-892", "Global Green Exporters", "1,200 kg", "KES 36,000.00", "Verified"],
-  ["ORD-2024-885", "EuroHarvest GmbH", "850 kg", "KES 25,500.00", "Pending"],
-  ["ORD-2024-870", "AvoDirect UK Ltd.", "2,400 kg", "KES 72,000.00", "Verified"],
-] as const
-
 export default function FarmerDashboard() {
   const { width } = useWindowDimensions()
   const isWide = width >= 900
+
+  const [payments, setPayments] = useState<{id: string, buyer: string, quantity: string, amount: string, status: string}[]>([]);
+
+  useEffect(() => {
+    fetch("http://localhost:5000/api/payments")
+      .then(res => res.json())
+      .then(data => setPayments(data))
+      .catch(err => console.error("Failed to fetch payments:", err));
+  }, []);
 
   return (
     <ScrollView className="flex-1 bg-[#FCF9F8]" contentContainerStyle={{ paddingBottom: 42 }}>
@@ -187,7 +191,7 @@ export default function FarmerDashboard() {
           </View>
           
           <View className="p-2">
-            {payments.map(([id, buyer, quantity, amount, status], i) => (
+            {payments.map(({ id, buyer, quantity, amount, status }, i) => (
               <View 
                 key={id} 
                 className={`p-4 gap-2 ${isWide ? 'flex-row items-center' : 'flex-col'} ${i !== payments.length - 1 ? 'border-b border-gray-100' : ''}`}

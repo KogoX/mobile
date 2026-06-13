@@ -1,6 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons"
 import { Image } from "expo-image"
 import { ScrollView, Text, useWindowDimensions, View, Pressable } from "react-native"
+import { useState, useEffect } from "react"
 
 import { ManagerButton, ManagerFooter, ManagerLayout } from "../../components/ManagerLayout"
 
@@ -31,56 +32,18 @@ const summary = [
   },
 ]
 
-const farmers = [
-  {
-    initials: "SM",
-    name: "Samuel Mwangi",
-    added: "Added 12 Jan 2024",
-    id: "KE-KM-8821",
-    location: "Githunguri, Kiambu",
-    status: "Verified",
-    yieldKg: "12,450 kg",
-    action: "View Details",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80"
-  },
-  {
-    initials: "LW",
-    name: "Lydia Wanjiku",
-    added: "Added 02 Feb 2024",
-    id: "KE-KM-8902",
-    location: "Limuru, Kiambu",
-    status: "Pending",
-    yieldKg: "8,210 kg",
-    action: "Review",
-    avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80"
-  },
-  {
-    initials: "DK",
-    name: "David Koech",
-    added: "Added 28 Jan 2024",
-    id: "KE-KM-7764",
-    location: "Kikuyu, Kiambu",
-    status: "Flagged",
-    yieldKg: "5,430 kg",
-    action: "View Issues",
-    avatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&q=80"
-  },
-  {
-    initials: "PK",
-    name: "Peter Kamau",
-    added: "Added 15 Dec 2023",
-    id: "KE-KM-5541",
-    location: "Thika, Kiambu",
-    status: "Suspended",
-    yieldKg: "0 kg",
-    action: "Reactivate",
-    avatar: null
-  },
-]
-
 export default function ManagerFarmers() {
   const { width } = useWindowDimensions()
   const isDesktop = width >= 1000
+
+  const [farmers, setFarmers] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch("http://localhost:5000/api/farmers")
+      .then(res => res.json())
+      .then(data => setFarmers(data))
+      .catch(err => console.error(err));
+  }, []);
 
   return (
     <ManagerLayout 
@@ -175,12 +138,12 @@ export default function ManagerFarmers() {
                         {farmer.avatar ? (
                           <Image source={{ uri: farmer.avatar }} className="w-full h-full" contentFit="cover" />
                         ) : (
-                          <Text className="text-gray-400 font-black text-xs">{farmer.initials}</Text>
+                          <Text className="text-gray-400 font-black text-xs">{farmer.name?.slice(0, 2).toUpperCase() || 'NA'}</Text>
                         )}
                       </View>
                       <View>
                         <Text className="text-[#0F5238] font-black text-[15px]">{farmer.name}</Text>
-                        <Text className="text-gray-500 text-xs mt-0.5">{farmer.added}</Text>
+                        <Text className="text-gray-500 text-xs mt-0.5">{farmer.added || "Added Recently"}</Text>
                       </View>
                     </View>
 
@@ -193,13 +156,13 @@ export default function ManagerFarmers() {
                     {/* Status Badge */}
                     <View className="w-[16%] items-start">
                       <View className={`px-3 py-1.5 rounded-full ${
-                        farmer.status === 'Verified' ? 'bg-[#D1F4E0]' : 
+                        farmer.status === 'Verified' || farmer.status === 'Active' ? 'bg-[#D1F4E0]' : 
                         farmer.status === 'Pending' ? 'bg-[#FEF3C7]' : 
                         farmer.status === 'Flagged' ? 'bg-[#FFEDD5]' : 
                         'bg-[#FFDAD6]'
                       }`}>
                         <Text className={`text-[11px] font-black tracking-wide ${
-                          farmer.status === 'Verified' ? 'text-[#0F5238]' : 
+                          farmer.status === 'Verified' || farmer.status === 'Active' ? 'text-[#0F5238]' : 
                           farmer.status === 'Pending' ? 'text-[#B45309]' : 
                           farmer.status === 'Flagged' ? 'text-[#C2410C]' : 
                           'text-[#991B1B]'
@@ -210,11 +173,11 @@ export default function ManagerFarmers() {
                     </View>
 
                     {/* Yield */}
-                    <Text className="w-[13%] text-[#0F5238] font-black text-sm">{farmer.yieldKg}</Text>
+                    <Text className="w-[13%] text-[#0F5238] font-black text-sm">{farmer.yieldKg || farmer.yield || "0 kg"}</Text>
 
                     {/* Action */}
                     <Pressable className="w-[10%] flex-row justify-end items-center gap-2 active:opacity-60">
-                      <Text className="text-[#0F5238] font-black text-[13px]">{farmer.action}</Text>
+                      <Text className="text-[#0F5238] font-black text-[13px]">{farmer.action || "View Details"}</Text>
                       <MaterialIcons name="edit" size={14} color="#A1A1AA" />
                     </Pressable>
 

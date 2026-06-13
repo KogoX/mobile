@@ -1,19 +1,21 @@
 import { MaterialIcons } from "@expo/vector-icons"
 import { ScrollView, Text, useWindowDimensions, View, Pressable, TextInput } from "react-native"
+import { useState, useEffect } from "react"
 
 import { ManagerButton, ManagerFooter, ManagerLayout } from "../../components/ManagerLayout"
-
-const harvests = [
-  { id: "#HV-8924", date: "Oct 24, 2024", season: "2024 Short Rains", variety: "Avocado (Hass)", qty: "1,250", grade: "Export" },
-  { id: "#HV-8910", date: "Oct 15, 2024", season: "2024 Short Rains", variety: "Avocado (Fuerte)", qty: "840", grade: "Local" },
-  { id: "#HV-8850", date: "Sep 02, 2024", season: "2024 Short Rains", variety: "Macadamia", qty: "320", grade: "Export" },
-  { id: "#HV-8702", date: "Jun 18, 2024", season: "2024 Long Rains", variety: "Avocado (Hass)", qty: "2,100", grade: "Export" },
-  { id: "#HV-8695", date: "May 30, 2024", season: "2024 Long Rains", variety: "Avocado (Fuerte)", qty: "650", grade: "Processing" },
-]
 
 export default function ManagerOrders() {
   const { width } = useWindowDimensions()
   const isDesktop = width >= 980
+
+  const [harvests, setHarvests] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch("http://localhost:5000/api/yields")
+      .then(res => res.json())
+      .then(data => setHarvests(data))
+      .catch(err => console.error(err));
+  }, []);
 
   return (
     <ManagerLayout
@@ -85,19 +87,19 @@ export default function ManagerOrders() {
                   <View key={row.id} className="flex-row items-center py-5 px-6 border-b border-gray-50 hover:bg-gray-50">
                     <Text className="w-[140px] text-gray-800 text-sm font-medium">{row.date}</Text>
                     <Text className="w-[130px] text-[#2D6A4F] text-sm font-bold tracking-wide">{row.id}</Text>
-                    <Text className="w-[180px] text-gray-600 text-sm font-medium">{row.season}</Text>
-                    <Text className="w-[180px] text-gray-800 text-sm font-medium">{row.variety}</Text>
-                    <Text className="w-[100px] text-gray-800 text-sm font-black text-center">{row.qty}</Text>
+                    <Text className="w-[180px] text-gray-600 text-sm font-medium">{row.season || row.cropSeason}</Text>
+                    <Text className="w-[180px] text-gray-800 text-sm font-medium">{row.variety || "Avocado (Hass)"}</Text>
+                    <Text className="w-[100px] text-gray-800 text-sm font-black text-center">{row.qty || row.quantity}</Text>
                     
                     <View className="w-[120px] items-center">
                       <View className={`px-3 py-1.5 rounded-full ${
-                        row.grade === 'Export' ? 'bg-[#D1F4E0]' : 
-                        row.grade === 'Local' ? 'bg-[#EAE3D5]' : 
+                        row.grade === 'Export' || row.grade === 'A' ? 'bg-[#D1F4E0]' : 
+                        row.grade === 'Local' || row.grade === 'B' ? 'bg-[#EAE3D5]' : 
                         'bg-[#EAEAEA]'
                       }`}>
                         <Text className={`text-[10px] font-black uppercase tracking-widest ${
-                          row.grade === 'Export' ? 'text-[#0F5238]' : 
-                          row.grade === 'Local' ? 'text-[#5C4A3D]' : 
+                          row.grade === 'Export' || row.grade === 'A' ? 'text-[#0F5238]' : 
+                          row.grade === 'Local' || row.grade === 'B' ? 'text-[#5C4A3D]' : 
                           'text-[#4A4A4A]'
                         }`}>
                           {row.grade}
