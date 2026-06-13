@@ -1,207 +1,294 @@
 import { MaterialIcons } from "@expo/vector-icons"
-import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native"
+import { Image } from "expo-image"
+import {
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+  SafeAreaView,
+  Platform,
+} from "react-native"
 
-import { ManagerButton, ManagerFooter, ManagerLayout } from "../../components/ManagerLayout"
+const logo = require("../../assets/cemslogo.svg")
 
-const metrics = [
-  ["Total Farmers", "1,284", "+12% from last month", "trending-up"],
-  ["Yield Aggregated", "42.8 MT", "Grade A Quality", "verified"],
-  ["Active Orders", "156", "98 scheduled for pickup", "schedule"],
-  ["Pending Approvals", "18", "Requires attention today", "priority-high"],
+const stats = [
+  { icon: "agriculture", label: "Total Yield (kg)", value: "14,280" },
+  { icon: "account-balance-wallet", label: "Pending Payments (KES)", value: "428,500" },
+  { icon: "shopping-bag", label: "Completed Orders", value: "84" },
+  { icon: "workspace-premium", label: "Cooperative Rank", value: "#04", hint: "Top Performer", isDark: true },
 ]
 
-const farmers = [
-  ["SM", "Samuel Mwangi", "KE-KM-8821", "1,420", "DISBURSED"],
-  ["JN", "Jane Njeri", "KE-KM-5510", "890", "PENDING"],
-  ["EO", "Emmanuel Otieno", "KE-KM-1204", "2,110", "DISBURSED"],
-  ["MW", "Mary Wanjiku", "KE-KM-3392", "540", "FLAGGED"],
+const bars = [
+  { month: "Jan", height: 35, color: "bg-[#D1EBDD]" },
+  { month: "Feb", height: 50, color: "bg-[#A3D9BE]" },
+  { month: "Mar", height: 45, color: "bg-[#75C69F]" },
+  { month: "Apr", height: 75, color: "bg-[#47B380]" },
+  { month: "May", height: 95, color: "bg-[#106D4B]" },
+  { month: "Jun", height: 85, color: "bg-[#0F5238]" },
 ]
 
-const approvals = [
-  ["#EXP-7721", "Premium Hass Batch", "850 KG", "Limuru", "LEVEL 2"],
-  ["#EXP-7724", "Standard Fuerte Batch", "1,200 KG", "Gatundu", "LEVEL 1"],
+const payments = [
+  { order: "ORD-2024-892", buyer: "Global Green Exporters", qty: "1,200 kg", amount: "KES 36,000", status: "Verified" },
+  { order: "ORD-2024-885", buyer: "EuroHarvest GmbH", qty: "850 kg", amount: "KES 25,500", status: "Pending" },
+  { order: "ORD-2024-870", buyer: "AvoDirect UK Ltd.", qty: "2,400 kg", amount: "KES 72,000", status: "Verified" },
 ]
 
-export default function ManagerDashboard() {
-  const { width } = useWindowDimensions()
-  const desktop = width >= 1180
-
+export default function FarmerDashboardMobile() {
   return (
-    <ManagerLayout
-      active="Dashboard"
-      title="Operational Overview"
-      subtitle="Harvest Season 2024 - Phase 2"
-      action={<ManagerButton label="Generate Export Log" />}
-    >
-      <ScrollView contentContainerStyle={styles.page}>
-        <View style={[styles.metricGrid, desktop && styles.metricGridDesktop]}>
-          {metrics.map(([label, value, hint, icon], index) => (
-            <View key={label} style={[styles.metricCard, index === 3 && styles.metricAccent]}>
-              <Text style={styles.labelCaps}>{label}</Text>
-              <Text style={styles.metricValue}>{value}</Text>
-              <View style={styles.metricHintRow}>
-                <MaterialIcons name={icon as never} size={14} color={index === 2 ? "#404943" : "#0f5238"} />
-                <Text style={[styles.metricHint, index === 2 && styles.mutedHint]}>{hint}</Text>
-              </View>
-              <View style={styles.leafMark}>
-                <MaterialIcons name="eco" size={74} color="#2d6a4f" />
-              </View>
-            </View>
-          ))}
-        </View>
-
-        <View style={[styles.grid, desktop && styles.gridDesktop]}>
-          <View style={styles.activityCard}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.sectionTitle}>Farmer Activity List</Text>
-              <View style={styles.searchRow}>
-                <View style={styles.searchPill}>
-                  <MaterialIcons name="search" size={17} color="#404943" />
-                  <Text style={styles.searchText}>Search farmers...</Text>
-                </View>
-                <View style={styles.iconOnly}>
-                  <MaterialIcons name="filter-list" size={20} color="#404943" />
-                </View>
-              </View>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.table}>
-                <View style={styles.tableHead}>
-                  <Text style={styles.nameCol}>Farmer Name</Text>
-                  <Text style={styles.idCol}>Farmer ID</Text>
-                  <Text style={styles.yieldCol}>Yield (KG)</Text>
-                  <Text style={styles.statusCol}>Payment Status</Text>
-                  <Text style={styles.actionCol}>Actions</Text>
-                </View>
-                {farmers.map(([initials, name, id, yieldKg, status]) => (
-                  <View key={id} style={styles.row}>
-                    <View style={styles.nameCol}>
-                      <View style={[styles.avatar, initials === "JN" && styles.avatarSand]}>
-                        <Text style={styles.avatarText}>{initials}</Text>
-                      </View>
-                      <Text style={styles.farmerName}>{name}</Text>
-                    </View>
-                    <Text style={styles.idColText}>{id}</Text>
-                    <Text style={styles.yieldColText}>{yieldKg}</Text>
-                    <View style={[styles.statusPill, status === "PENDING" && styles.pending, status === "FLAGGED" && styles.flagged]}>
-                      <Text style={[styles.statusText, status === "FLAGGED" && styles.flaggedText]}>{status}</Text>
-                    </View>
-                    <Text style={styles.actionText}>View Details</Text>
-                  </View>
-                ))}
-              </View>
-            </ScrollView>
+    <SafeAreaView className="flex-1 bg-[#FCF9F8]">
+      
+      {/* Main Scrollable Content */}
+      <ScrollView 
+        className="flex-1" 
+        contentContainerStyle={{ paddingBottom: 100 }} // Padding for bottom nav
+        showsVerticalScrollIndicator={false}
+      >
+        <View className="p-5">
+          
+          {/* Top Brand */}
+          <View className="flex-row items-center gap-2 mb-8">
+            <Image source={logo} style={{ width: 20, height: 20 }} contentFit="contain" tintColor="#0F5238" />
+            <Text className="text-[#0F5238] text-lg font-black tracking-wide">CEMS</Text>
           </View>
 
-          <View style={styles.queue}>
-            <Text style={styles.sectionTitle}>Approval Queue</Text>
-            {approvals.map(([order, batch, weight, origin, level]) => (
-              <View key={order} style={styles.approvalCard}>
-                <View style={styles.approvalTop}>
-                  <View>
-                    <Text style={styles.labelCaps}>Order {order}</Text>
-                    <Text style={styles.approvalTitle}>{batch}</Text>
+          {/* Welcome Header */}
+          <View className="mb-6">
+            <Text className="text-4xl font-black text-[#0F5238] font-serif leading-[42px] mb-2">
+              Good morning,{'\n'}Peter 🌱
+            </Text>
+            <Text className="text-gray-600 text-sm leading-relaxed mb-4">
+              Your orchard is thriving. Here's your export summary for today.
+            </Text>
+            <View className="self-start bg-[#A0F4C8] rounded-full px-4 py-2 flex-row items-center gap-2">
+              <View className="bg-[#002113] rounded-full w-4 h-4 items-center justify-center">
+                <MaterialIcons name="done" size={12} color="#A0F4C8" />
+              </View>
+              <Text className="text-[#002113] text-[11px] font-black uppercase tracking-widest">
+                Tier 1 Verified Producer
+              </Text>
+            </View>
+          </View>
+
+          {/* Stats List (Vertical Stack for Mobile) */}
+          <View className="gap-4 mb-8">
+            {stats.map((stat, idx) => (
+              <View 
+                key={idx} 
+                className={`rounded-2xl p-5 shadow-sm border ${
+                  stat.isDark ? 'bg-[#0F5238] border-[#0F5238]' : 'bg-white border-gray-100'
+                }`}
+              >
+                <View className="flex-row items-start justify-between mb-2">
+                  <View className={`w-10 h-10 rounded-xl items-center justify-center mb-1 ${
+                    stat.isDark ? 'bg-[#18634B]' : 'bg-[#EAF5F0]'
+                  }`}>
+                    <MaterialIcons 
+                      name={stat.icon as any} 
+                      size={20} 
+                      color={stat.isDark ? "#A3E635" : "#2A5C43"} 
+                    />
                   </View>
-                  <Text style={styles.level}>{level}</Text>
                 </View>
-                <View style={styles.approvalStats}>
-                  <View>
-                    <Text style={styles.tinyLabel}>Weight</Text>
-                    <Text style={styles.approvalValue}>{weight}</Text>
-                  </View>
-                  <View>
-                    <Text style={styles.tinyLabel}>Origin</Text>
-                    <Text style={styles.approvalValue}>{origin}</Text>
-                  </View>
-                </View>
-                <View style={styles.approvalActions}>
-                  <Text style={styles.approve}>Approve</Text>
-                  <Text style={styles.reject}>Reject</Text>
+                <Text className={`text-[10px] font-black uppercase tracking-widest mb-1 ${
+                  stat.isDark ? 'text-[#b1f0ce]' : 'text-gray-500'
+                }`}>
+                  {stat.label}
+                </Text>
+                <View className="flex-row items-end gap-2">
+                  <Text className={`text-3xl font-black font-serif ${
+                    stat.isDark ? 'text-white' : 'text-gray-800'
+                  }`}>
+                    {stat.value}
+                  </Text>
+                  {stat.hint && (
+                    <Text className="text-[#A3E635] text-xs font-bold mb-1.5 ml-1">{stat.hint}</Text>
+                  )}
                 </View>
               </View>
             ))}
-            <View style={styles.tipCard}>
-              <View style={styles.tipIcon}>
-                <MaterialIcons name="lightbulb" size={24} color="#98ebc0" />
+          </View>
+
+          {/* Log New Harvest Card */}
+          <View className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm mb-8">
+            <Text className="text-[#0F5238] text-2xl font-black font-serif mb-5">Log New Harvest</Text>
+            
+            <FormField label="Crop Season" value="Main Season 2024" isDropdown />
+            <FormField label="Quantity (Kilograms)" value="0.00" />
+            
+            <View className="mt-4 mb-2">
+              <Text className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2 ml-1">Produce Grade</Text>
+              <View className="flex-row gap-3">
+                {["A", "B", "C"].map((grade) => (
+                  <Pressable 
+                    key={grade} 
+                    className={`flex-1 border rounded-xl py-3.5 items-center ${
+                      grade === "A" ? 'bg-[#0F5238] border-[#0F5238]' : 'bg-white border-gray-200'
+                    }`}
+                  >
+                    <Text className={`font-black text-sm ${grade === "A" ? 'text-white' : 'text-gray-600'}`}>{grade}</Text>
+                  </Pressable>
+                ))}
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.tipTitle}>Optimization Tip</Text>
-                <Text style={styles.tipText}>Aggregating orders from Limuru could reduce logistics costs by 14%.</Text>
+            </View>
+            
+            <FormField label="Harvest Date" value="mm/dd/yyyy" />
+            
+            <Pressable className="mt-6 bg-[#0F5238] rounded-full min-h-[54px] flex-row items-center justify-center gap-2 shadow-sm active:opacity-80">
+              <MaterialIcons name="add-task" size={20} color="#ffffff" />
+              <Text className="text-white font-black text-sm">Submit Yield Record</Text>
+            </Pressable>
+          </View>
+
+          {/* Earnings Performance Card */}
+          <View className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm mb-8">
+            <View className="flex-row justify-between items-start mb-6">
+              <View className="flex-1">
+                <Text className="text-[#0F5238] text-2xl font-black font-serif leading-tight mb-1">Earnings{'\n'}Performance</Text>
+                <Text className="text-gray-500 text-xs mt-1 leading-relaxed">Export revenue trends over the last 6 months.</Text>
+              </View>
+              <Pressable className="ml-4 p-2">
+                <MaterialIcons name="file-download" size={24} color="#71717A" />
+              </Pressable>
+            </View>
+            
+            <View className="h-48 flex-row items-end gap-2 px-1 pb-6 mt-4 border-b border-gray-100">
+              {bars.map((bar) => (
+                <View key={bar.month} className="flex-1 h-full justify-end items-center">
+                  <View className={`w-full rounded-t-md ${bar.color}`} style={{ height: `${bar.height}%` }} />
+                  <Text className="text-gray-400 text-[9px] font-black uppercase mt-3">{bar.month}</Text>
+                </View>
+              ))}
+            </View>
+            
+            <View className="pt-5 flex-row items-center justify-between px-2">
+              <View>
+                <Text className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1">Average Yield</Text>
+                <Text className="text-xl font-black text-gray-800">2,380kg</Text>
+              </View>
+              <View className="items-end">
+                <Text className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1">Growth Rate</Text>
+                <Text className="text-xl font-black text-[#0F5238]">+18.4%</Text>
               </View>
             </View>
           </View>
+
+          {/* Recent Payments Card */}
+          <View className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm mb-8">
+            <View className="flex-row justify-between items-center mb-6">
+              <View className="flex-1 pr-4">
+                <Text className="text-[#0F5238] text-2xl font-black font-serif leading-tight">Recent{'\n'}Payments</Text>
+                <Text className="text-gray-500 text-[11px] mt-2 leading-relaxed">Track your most recent settlements from international buyers.</Text>
+              </View>
+              <Pressable className="bg-white border border-gray-200 rounded-full px-4 py-2.5 shadow-sm active:bg-gray-50">
+                <Text className="text-gray-800 font-black text-[10px] uppercase tracking-widest text-center">View All{'\n'}Statements</Text>
+              </Pressable>
+            </View>
+
+            {/* Mobile Table Header */}
+            <View className="flex-row pb-3 border-b border-gray-100 mb-3">
+              <Text className="flex-[1.2] text-gray-400 text-[9px] font-black uppercase tracking-widest">Order ID</Text>
+              <Text className="flex-[1.5] text-gray-400 text-[9px] font-black uppercase tracking-widest">Buyer</Text>
+              <Text className="flex-[0.8] text-gray-400 text-[9px] font-black uppercase tracking-widest">Quantity</Text>
+              <Text className="flex-1 text-gray-400 text-[9px] font-black uppercase tracking-widest text-right">Amount / Status</Text>
+            </View>
+
+            {/* Mobile Table Rows */}
+            <View className="gap-4">
+              {payments.map((payment, i) => (
+                <View key={i} className={`flex-row items-center py-2 ${i !== payments.length - 1 ? 'border-b border-gray-50 pb-4' : ''}`}>
+                  <View className="flex-[1.2]">
+                    <Text className="text-gray-800 font-black text-[11px]">{payment.order.split('-')[0]}-</Text>
+                    <Text className="text-gray-800 font-black text-[11px]">{payment.order.split('-').slice(1).join('-')}</Text>
+                  </View>
+                  <Text className="flex-[1.5] text-gray-600 font-bold text-[11px] pr-2">{payment.buyer}</Text>
+                  <Text className="flex-[0.8] text-gray-500 font-medium text-[11px]">{payment.qty}</Text>
+                  <View className="flex-1 items-end">
+                    <Text className="text-gray-800 font-black text-[11px] mb-1">{payment.amount}</Text>
+                    <View className={`px-2 py-0.5 rounded text-center ${payment.status === 'Verified' ? 'bg-[#D1F4E0]' : 'bg-[#FEF3C7]'}`}>
+                      <Text className={`text-[8px] font-black uppercase tracking-widest ${payment.status === 'Verified' ? 'text-[#0F5238]' : 'text-[#92400E]'}`}>
+                        {payment.status}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* Bottom Footer Text */}
+          <View className="items-center mt-4 mb-8">
+            <View className="flex-row items-center gap-1.5 mb-3">
+              <MaterialIcons name="eco" size={14} color="#A1A1AA" />
+              <Text className="text-gray-400 text-sm font-black tracking-widest">CEMS KENYA</Text>
+            </View>
+            <View className="flex-row gap-4 mb-3">
+              <Text className="text-gray-400 text-[9px] font-black uppercase tracking-widest underline">Privacy Policy</Text>
+              <Text className="text-gray-400 text-[9px] font-black uppercase tracking-widest underline">Terms Of Service</Text>
+              <Text className="text-gray-400 text-[9px] font-black uppercase tracking-widest underline">Export Guidelines</Text>
+            </View>
+            <Text className="text-gray-400 text-[9px] font-black uppercase tracking-widest text-center">
+              © 2024 CEMS KENYA. CULTIVATING EXPORT{'\n'}EXCELLENCE.
+            </Text>
+          </View>
+
         </View>
-        <ManagerFooter />
       </ScrollView>
-    </ManagerLayout>
+
+      {/* Floating Bottom Navigation Bar */}
+      <View 
+        className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex-row justify-around items-end pb-6 pt-3 px-2 shadow-lg"
+        style={{ paddingBottom: Platform.OS === 'ios' ? 32 : 16 }}
+      >
+        <NavIcon icon="home" label="Home" isActive />
+        <NavIcon icon="receipt-long" label="History" />
+        
+        {/* Floating Action Button (Center) */}
+        <View className="relative -top-6 items-center">
+          <Pressable className="w-14 h-14 bg-[#0F5238] rounded-full items-center justify-center shadow-md active:opacity-80 border-4 border-[#FCF9F8]">
+            <MaterialIcons name="add" size={28} color="#ffffff" />
+          </Pressable>
+        </View>
+
+        <NavIcon icon="bar-chart" label="Stats" />
+        <NavIcon icon="person-outline" label="Profile" />
+      </View>
+    </SafeAreaView>
   )
 }
 
-const styles = StyleSheet.create({
-  page: { padding: 32, backgroundColor: "#fcf9f8" },
-  metricGrid: { gap: 24 },
-  metricGridDesktop: { flexDirection: "row" },
-  metricCard: {
-    flex: 1,
-    minWidth: 220,
-    minHeight: 150,
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 24,
-    overflow: "hidden",
-    shadowColor: "#2d6a4f",
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-  },
-  metricAccent: { borderLeftWidth: 4, borderLeftColor: "#0f5238" },
-  labelCaps: { color: "#404943", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
-  metricValue: { color: "#0f5238", fontSize: 36, fontWeight: "900", marginTop: 10, fontFamily: "serif" },
-  metricHintRow: { marginTop: 8, flexDirection: "row", alignItems: "center", gap: 5 },
-  metricHint: { color: "#0f5238", fontSize: 13, fontWeight: "800" },
-  mutedHint: { color: "#404943" },
-  leafMark: { position: "absolute", right: -18, bottom: -24, opacity: 0.05 },
-  grid: { marginTop: 64, gap: 24 },
-  gridDesktop: { flexDirection: "row", alignItems: "flex-start" },
-  activityCard: { flex: 2, backgroundColor: "#ffffff", borderRadius: 12, overflow: "hidden", shadowColor: "#2d6a4f", shadowOpacity: 0.06, shadowRadius: 16 },
-  cardHeader: { padding: 24, borderBottomWidth: 1, borderBottomColor: "#eae7e7", flexDirection: "row", justifyContent: "space-between", gap: 16, flexWrap: "wrap", alignItems: "center" },
-  sectionTitle: { color: "#0f5238", fontSize: 22, fontWeight: "900", fontFamily: "serif" },
-  searchRow: { flexDirection: "row", alignItems: "center", gap: 16 },
-  searchPill: { height: 38, minWidth: 210, borderRadius: 999, paddingHorizontal: 14, backgroundColor: "#f6f3f2", borderWidth: 1, borderColor: "#eae7e7", flexDirection: "row", alignItems: "center", gap: 8 },
-  searchText: { color: "#707973", fontSize: 13 },
-  iconOnly: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center" },
-  table: { minWidth: 760 },
-  tableHead: { flexDirection: "row", backgroundColor: "#f6f3f2", paddingVertical: 16, paddingHorizontal: 24 },
-  row: { minHeight: 70, flexDirection: "row", alignItems: "center", paddingHorizontal: 24, borderTopWidth: 1, borderTopColor: "#eae7e7" },
-  nameCol: { width: 220, flexDirection: "row", alignItems: "center", gap: 12, color: "#404943", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
-  idCol: { width: 150, color: "#404943", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
-  yieldCol: { width: 120, color: "#404943", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
-  statusCol: { width: 170, color: "#404943", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
-  actionCol: { width: 100, color: "#404943", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
-  avatar: { width: 32, height: 32, borderRadius: 999, backgroundColor: "#b1f0ce", alignItems: "center", justifyContent: "center" },
-  avatarSand: { backgroundColor: "#e6e3d0" },
-  avatarText: { color: "#0e5138", fontSize: 12, fontWeight: "900" },
-  farmerName: { color: "#0f5238", fontWeight: "900" },
-  idColText: { width: 150, color: "#404943", fontSize: 13, fontFamily: "monospace" },
-  yieldColText: { width: 120, color: "#1b1b1b", fontWeight: "900" },
-  statusPill: { width: 132, borderRadius: 999, backgroundColor: "#a0f4c8", alignItems: "center", paddingVertical: 6 },
-  pending: { backgroundColor: "#e5e2e1" },
-  flagged: { backgroundColor: "#ffdad6" },
-  statusText: { color: "#005236", fontSize: 11, fontWeight: "900" },
-  flaggedText: { color: "#93000a" },
-  actionText: { width: 100, color: "#0f5238", fontSize: 13, fontWeight: "900" },
-  queue: { flex: 1, gap: 24 },
-  approvalCard: { backgroundColor: "#ffffff", borderRadius: 12, padding: 24, borderWidth: 1, borderColor: "#eae7e7", shadowColor: "#2d6a4f", shadowOpacity: 0.06, shadowRadius: 16 },
-  approvalTop: { flexDirection: "row", justifyContent: "space-between", gap: 12 },
-  approvalTitle: { color: "#0f5238", fontSize: 18, fontWeight: "900", marginTop: 4 },
-  level: { color: "#404943", backgroundColor: "#f0eded", paddingHorizontal: 8, paddingVertical: 5, borderRadius: 4, fontSize: 10, fontWeight: "900", overflow: "hidden" },
-  approvalStats: { marginTop: 16, marginBottom: 16, paddingVertical: 16, borderTopWidth: 1, borderBottomWidth: 1, borderColor: "#f6f3f2", flexDirection: "row", gap: 32 },
-  tinyLabel: { color: "#404943", fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
-  approvalValue: { color: "#0f5238", fontWeight: "900", marginTop: 4 },
-  approvalActions: { flexDirection: "row", gap: 16 },
-  approve: { flex: 1, textAlign: "center", backgroundColor: "#0f5238", color: "#ffffff", borderRadius: 999, paddingVertical: 10, fontWeight: "900", overflow: "hidden" },
-  reject: { flex: 1, textAlign: "center", borderWidth: 1, borderColor: "#ba1a1a", color: "#ba1a1a", borderRadius: 999, paddingVertical: 9, fontWeight: "900", overflow: "hidden" },
-  tipCard: { backgroundColor: "rgba(16,109,75,0.1)", borderColor: "rgba(16,109,75,0.3)", borderWidth: 1, borderRadius: 12, padding: 24, flexDirection: "row", gap: 24, alignItems: "center" },
-  tipIcon: { width: 48, height: 48, borderRadius: 999, backgroundColor: "#106d4b", alignItems: "center", justifyContent: "center" },
-  tipTitle: { color: "#005337", fontWeight: "900" },
-  tipText: { color: "#005236", fontSize: 12, marginTop: 4, lineHeight: 18 },
-})
+// Subcomponent for form fields
+function FormField({ label, value, isDropdown }: { label: string; value: string; isDropdown?: boolean }) {
+  return (
+    <View className="mt-4">
+      <Text className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2 ml-1">
+        {label}
+      </Text>
+      {isDropdown ? (
+        <Pressable className="min-h-[50px] bg-white border border-gray-200 rounded-xl px-4 flex-row items-center justify-between active:bg-gray-50">
+          <Text className="text-gray-800 font-bold text-sm">{value}</Text>
+          <MaterialIcons name="expand-more" size={20} color="#71717A" />
+        </Pressable>
+      ) : (
+        <TextInput 
+          className="min-h-[50px] bg-white border border-gray-200 rounded-xl px-4 text-gray-800 font-bold text-sm" 
+          placeholder={value} 
+          placeholderTextColor="#A1A1AA" 
+          style={{ outlineStyle: 'none' } as never}
+        />
+      )}
+    </View>
+  )
+}
+
+// Subcomponent for Bottom Nav Icons
+function NavIcon({ icon, label, isActive }: { icon: any; label: string; isActive?: boolean }) {
+  return (
+    <Pressable className="items-center justify-center gap-1 px-4 active:opacity-50">
+      <MaterialIcons name={icon} size={24} color={isActive ? "#0F5238" : "#A1A1AA"} />
+      <Text className={`text-[9px] font-black ${isActive ? 'text-[#0F5238]' : 'text-[#A1A1AA]'}`}>
+        {label}
+      </Text>
+    </Pressable>
+  )
+}

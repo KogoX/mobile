@@ -130,7 +130,7 @@ function DetailItem({ label, value, isBold, isPrice, isWide }: { label: string; 
         isBold ? 'text-gray-900 font-black' : 
         'text-gray-700 font-semibold'
       }`}>
-        {value}
+        {value}=
       </Text>
     </View>
   )
