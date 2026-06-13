@@ -1,27 +1,19 @@
 import { MaterialIcons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View,
-} from "react-native"
+import { Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native"
 
 const orders = [
-  ["#ORD-7721", "Processing", "Mount Kenya Organic", "Grade A Hass Avocados", "20.5 Tons", "$25,625.00", "Oct 24, 2024"],
-  ["#ORD-7690", "In Transit", "Aberdare Highlands", "Premium Jumbo Fuerte", "15.2 Tons", "$18,440.00", "Oct 20, 2024"],
-  ["#ORD-7512", "Delivered", "Murang'a Growers", "Export Grade Hass", "32.0 Tons", "$41,000.00", "Oct 12, 2024"],
-  ["#ORD-7405", "Cancelled", "Rift Valley Orchards", "Grade B Hass", "10.0 Tons", "$12,000.00", "Sep 28, 2024"],
+  { id: "#ORD-7721", status: "Processing", coop: "Mount Kenya Organic", produce: "Grade A Hass Avocados", quantity: "20.5 Tons", amount: "$25,625.00", date: "Oct 24, 2024" },
+  { id: "#ORD-7690", status: "In Transit", coop: "Aberdare Highlands", produce: "Premium Jumbo Fuerte", quantity: "15.2 Tons", amount: "$18,440.00", date: "Oct 20, 2024" },
+  { id: "#ORD-7512", status: "Delivered", coop: "Murang'a Growers", produce: "Export Grade Hass", quantity: "32.0 Tons", amount: "$41,000.00", date: "Oct 12, 2024" },
+  { id: "#ORD-7405", status: "Cancelled", coop: "Rift Valley Orchards", produce: "Grade B Hass", quantity: "10.0 Tons", amount: "$12,000.00", date: "Sep 28, 2024" },
 ] as const
 
-const statusColors: Record<string, { bg: string; fg: string; dot: string }> = {
-  Processing: { bg: "#fef3c7", fg: "#92400e", dot: "#d97706" },
-  "In Transit": { bg: "#dbeafe", fg: "#1e40af", dot: "#2563eb" },
-  Delivered: { bg: "#dcfce7", fg: "#166534", dot: "#16a34a" },
-  Cancelled: { bg: "#fee2e2", fg: "#991b1b", dot: "#dc2626" },
+const statusStyles: Record<string, { bg: string; text: string; dot: string }> = {
+  Processing: { bg: "bg-[#FEF3C7]", text: "text-[#92400E]", dot: "bg-[#D97706]" },
+  "In Transit": { bg: "bg-[#DBEAFE]", text: "text-[#1E40AF]", dot: "bg-[#2563EB]" },
+  Delivered: { bg: "bg-[#DCFCE7]", text: "text-[#166534]", dot: "bg-[#16A34A]" },
+  Cancelled: { bg: "bg-[#FEE2E2]", text: "text-[#991B1B]", dot: "bg-[#DC2626]" },
 }
 
 export default function BuyerOrders() {
@@ -30,175 +22,116 @@ export default function BuyerOrders() {
   const isWide = width >= 780
 
   return (
-    <ScrollView style={styles.page} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Pressable style={styles.iconButton} onPress={() => router.back()}>
-            <MaterialIcons name="arrow-back" size={24} color="#2d6a4f" />
+    <ScrollView className="flex-1 bg-[#FCF9F8]" contentContainerStyle={{ paddingBottom: 40 }}>
+      
+      {/* Upper Navigation Header */}
+      <View className="min-h-[64px] px-6 border-b border-[#E9EDE9] flex-row items-center justify-between bg-[#FCF9F8]">
+        <View className="flex-row items-center gap-3">
+          <Pressable 
+            className="w-10 h-10 rounded-full items-center justify-center active:bg-gray-100" 
+            onPress={() => router.back()}
+          >
+            <MaterialIcons name="arrow-back" size={24} color="#2D6A4F" />
           </Pressable>
-          <Text style={styles.headerTitle}>Order History</Text>
+          <Text className="text-[#2D6A4F] text-xl font-black">Order History</Text>
         </View>
-        <MaterialIcons name="filter-list" size={24} color="#2d6a4f" />
+        <Pressable className="w-10 h-10 rounded-full items-center justify-center active:bg-gray-100">
+          <MaterialIcons name="filter-list" size={24} color="#2D6A4F" />
+        </Pressable>
       </View>
 
-      <View style={styles.container}>
-        <View style={[styles.searchPanel, isWide && styles.searchPanelWide]}>
-          <View style={styles.searchBox}>
+      {/* Main Workspace Workspace Container */}
+      <View className="w-full max-w-[980px] self-center p-5 gap-6">
+        
+        {/* Search & Filter Toolbar Panel */}
+        <View className={`bg-white rounded-2xl p-4 gap-3 shadow-sm border border-gray-100/50 ${isWide ? 'flex-row items-center' : 'flex-col'}`}>
+          <View className="flex-[2] min-h-[50px] border border-[#BFC9C1] rounded-xl flex-row items-center gap-3 px-4 focus-within:border-[#2D6A4F]">
             <MaterialIcons name="search" size={22} color="#707973" />
             <TextInput
-              style={styles.searchInput}
+              className="flex-1 text-gray-800 font-medium text-sm"
               placeholder="Search by Order ID or Cooperative..."
               placeholderTextColor="#707973"
+              style={{ outlineStyle: "none" as never }}
             />
           </View>
-          <View style={styles.dateBox}>
-            <Text style={styles.dateText}>All Dates</Text>
+          
+          <View className="flex-1 min-h-[50px] border border-[#BFC9C1] rounded-xl px-4 flex-row items-center justify-between active:bg-gray-50">
+            <Text className="text-[#404943] font-extrabold text-sm">All Dates</Text>
             <MaterialIcons name="expand-more" size={22} color="#707973" />
           </View>
         </View>
 
-        <View style={styles.orderList}>
-          {orders.map(([id, status, coop, produce, quantity, amount, date]) => (
-            <View key={id} style={styles.orderCard}>
-              <View style={[styles.orderTop, isWide && styles.orderTopWide]}>
-                <View>
-                  <Text style={styles.label}>Order ID</Text>
-                  <Text style={styles.orderId}>{id}</Text>
+        {/* Detailed Orders Feed List */}
+        <View className="gap-5">
+          {orders.map((order) => {
+            const currentStyle = statusStyles[order.status]
+            
+            return (
+              <View key={order.id} className="bg-white border border-[#E9EDE9] rounded-2xl p-5 shadow-sm">
+                
+                {/* Header Information Row inside Card */}
+                <View className={`pb-4 mb-4 border-b border-[#E9EDE9] gap-3 ${isWide ? 'flex-row items-center justify-between' : 'flex-col'}`}>
+                  <View>
+                    <Text className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-0.5">Order ID</Text>
+                    <Text className="text-[#0F5238] text-xl font-black font-mono">{order.id}</Text>
+                  </View>
+                  
+                  {/* Visual Dynamic Status Pill Component */}
+                  <View className={`self-start rounded-full px-3.5 py-1.5 flex-row items-center gap-2 ${currentStyle.bg}`}>
+                    <View className={`w-2 h-2 rounded-full ${currentStyle.dot}`} />
+                    <Text className={`text-xs font-black tracking-wide ${currentStyle.text}`}>{order.status}</Text>
+                  </View>
                 </View>
-                <StatusBadge status={status} />
-              </View>
 
-              <View style={[styles.detailGrid, isWide && styles.detailGridWide]}>
-                <Detail label="Cooperative" value={coop} strong />
-                <Detail label="Produce Type" value={produce} />
-                <Detail label="Quantity" value={quantity} />
-                <Detail label="Total Amount" value={amount} amount />
-                <Detail label="Order Date" value={date} />
-              </View>
+                {/* Metrics Context Details Information Block Grid */}
+                <View className={`gap-y-4 gap-x-2 mb-4 ${isWide ? 'flex-row flex-wrap justify-between' : 'flex-col'}`}>
+                  <DetailItem label="Cooperative" value={order.coop} isBold isWide={isWide} />
+                  <DetailItem label="Produce Type" value={order.produce} isWide={isWide} />
+                  <DetailItem label="Quantity" value={order.quantity} isWide={isWide} />
+                  <DetailItem label="Total Amount" value={order.amount} isPrice isWide={isWide} />
+                  <DetailItem label="Order Date" value={order.date} isWide={isWide} />
+                </View>
 
-              <View style={styles.actions}>
-                {status !== "Delivered" && status !== "Cancelled" ? (
-                  <Pressable style={styles.primaryButton}>
-                    <Text style={styles.primaryText}>Track Order</Text>
+                {/* Footer Dynamic Execution Action Row Component */}
+                <View className="border-t border-[#E9EDE9] pt-4 flex-row flex-wrap gap-3 items-center">
+                  {order.status !== "Delivered" && order.status !== "Cancelled" && (
+                    <Pressable className="bg-[#0F5238] rounded-full px-5 py-2.5 shadow-sm active:opacity-80">
+                      <Text className="text-white font-black text-xs">Track Order</Text>
+                    </Pressable>
+                  )}
+                  
+                  <Pressable className="border border-[#0F5238] rounded-full px-5 py-2.5 active:bg-gray-50">
+                    <Text className="text-[#0F5238] font-black text-xs">
+                      {order.status === "Cancelled" ? "Re-order" : "View Details"}
+                    </Text>
                   </Pressable>
-                ) : null}
-                <Pressable style={styles.outlineButton}>
-                  <Text style={styles.outlineText}>{status === "Cancelled" ? "Re-order" : "View Details"}</Text>
-                </Pressable>
-                <Pressable style={styles.textButton}>
-                  <MaterialIcons name="description" size={18} color="#707973" />
-                  <Text style={styles.textButtonLabel}>Invoice</Text>
-                </Pressable>
+                  
+                  <Pressable className="flex-row items-center gap-1.5 px-3 py-2.5 ml-auto active:opacity-60">
+                    <MaterialIcons name="description" size={18} color="#707973" />
+                    <Text className="text-[#707973] font-black text-xs">Invoice</Text>
+                  </Pressable>
+                </View>
+
               </View>
-            </View>
-          ))}
+            )
+          })}
         </View>
       </View>
     </ScrollView>
   )
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const colors = statusColors[status]
+function DetailItem({ label, value, isBold, isPrice, isWide }: { label: string; value: string; isBold?: boolean; isPrice?: boolean; isWide: boolean }) {
   return (
-    <View style={[styles.statusBadge, { backgroundColor: colors.bg }]}>
-      <View style={[styles.statusDot, { backgroundColor: colors.dot }]} />
-      <Text style={[styles.statusText, { color: colors.fg }]}>{status}</Text>
+    <View style={{ minWidth: isWide ? 170 : '100%' }} className="flex-1">
+      <Text className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-1">{label}</Text>
+      <Text className={`text-sm ${
+        isPrice ? 'text-[#0F5238] text-[17px] font-black' : 
+        isBold ? 'text-gray-900 font-black' : 
+        'text-gray-700 font-semibold'
+      }`}>
+        {value}
+      </Text>
     </View>
   )
 }
-
-function Detail({ label, value, strong, amount }: { label: string; value: string; strong?: boolean; amount?: boolean }) {
-  return (
-    <View style={styles.detail}>
-      <Text style={styles.label}>{label}</Text>
-      <Text style={[styles.detailValue, strong && styles.strongValue, amount && styles.amountValue]}>{value}</Text>
-    </View>
-  )
-}
-
-const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: "#fcf9f8" },
-  content: { paddingBottom: 32 },
-  header: {
-    minHeight: 64,
-    paddingHorizontal: 16,
-    borderBottomColor: "#e9ede9",
-    borderBottomWidth: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#fcf9f8",
-  },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-  iconButton: { width: 40, height: 40, borderRadius: 999, alignItems: "center", justifyContent: "center" },
-  headerTitle: { color: "#2d6a4f", fontSize: 20, fontWeight: "900" },
-  container: { width: "100%", maxWidth: 980, alignSelf: "center", padding: 20, gap: 20 },
-  searchPanel: {
-    backgroundColor: "#ffffff",
-    borderRadius: 18,
-    padding: 14,
-    gap: 12,
-    shadowColor: "#2d6a4f",
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 3,
-  },
-  searchPanelWide: { flexDirection: "row", alignItems: "center" },
-  searchBox: {
-    flex: 2,
-    minHeight: 50,
-    borderColor: "#bfc9c1",
-    borderWidth: 1,
-    borderRadius: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 14,
-  },
-  searchInput: { flex: 1, color: "#1b1b1b", outlineStyle: "none" as never },
-  dateBox: {
-    flex: 1,
-    minHeight: 50,
-    borderColor: "#bfc9c1",
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  dateText: { color: "#404943", fontWeight: "800" },
-  orderList: { gap: 16 },
-  orderCard: {
-    backgroundColor: "#ffffff",
-    borderColor: "#e9ede9",
-    borderWidth: 1,
-    borderRadius: 18,
-    padding: 18,
-    shadowColor: "#2d6a4f",
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 3,
-  },
-  orderTop: { gap: 12, borderBottomColor: "#e9ede9", borderBottomWidth: 1, paddingBottom: 14, marginBottom: 16 },
-  orderTopWide: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  label: { color: "#707973", fontSize: 12, fontWeight: "900", textTransform: "uppercase", marginBottom: 4 },
-  orderId: { color: "#0f5238", fontSize: 20, fontWeight: "900" },
-  statusBadge: { alignSelf: "flex-start", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, flexDirection: "row", alignItems: "center", gap: 8 },
-  statusDot: { width: 8, height: 8, borderRadius: 999 },
-  statusText: { fontSize: 12, fontWeight: "900" },
-  detailGrid: { gap: 14, marginBottom: 16 },
-  detailGridWide: { flexDirection: "row", flexWrap: "wrap" },
-  detail: { minWidth: 180, flex: 1 },
-  detailValue: { color: "#1b1b1b", fontSize: 15 },
-  strongValue: { fontWeight: "900" },
-  amountValue: { color: "#0f5238", fontSize: 19, fontWeight: "900" },
-  actions: { borderTopColor: "#e9ede9", borderTopWidth: 1, paddingTop: 14, flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  primaryButton: { backgroundColor: "#0f5238", borderRadius: 999, paddingHorizontal: 18, paddingVertical: 10 },
-  primaryText: { color: "#ffffff", fontWeight: "900" },
-  outlineButton: { borderColor: "#0f5238", borderWidth: 1, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 9 },
-  outlineText: { color: "#0f5238", fontWeight: "900" },
-  textButton: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 10 },
-  textButtonLabel: { color: "#707973", fontWeight: "900" },
-})
