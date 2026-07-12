@@ -6,10 +6,10 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import api from "../../lib/api"
 
 export default function LogYield() {
-  const [season, setSeason] = useState("Main Season 2024");
+  const [season, setSeason] = useState("Main Season 2026");
   const [quantity, setQuantity] = useState("");
   const [grade, setGrade] = useState("A");
-  const [date, setDate] = useState("2024-06-15");
+  const [date, setDate] = useState("15/06/2026");
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async () => {
@@ -24,7 +24,7 @@ export default function LogYield() {
         cropSeason: season,
         quantity: Number(quantity),
         grade,
-        date
+        date: toApiDate(date)
       })
       Alert.alert("Saved", "Yield logged successfully.")
       setQuantity("")
@@ -84,6 +84,7 @@ export default function LogYield() {
             className="min-h-[48px] bg-[#F9F9F9] border border-gray-200 rounded-xl px-4 text-gray-800 font-bold" 
             value={date}
             onChangeText={setDate}
+            placeholder="dd/mm/yyyy"
           />
         </View>
         
@@ -99,4 +100,10 @@ export default function LogYield() {
     </ScrollView>
     </SafeAreaView>
   );
+}
+
+function toApiDate(value: string) {
+  const [day, month, year] = value.split("/")
+  if (!day || !month || !year) return value
+  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`
 }
