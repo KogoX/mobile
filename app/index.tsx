@@ -1,6 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons"
 import { Image } from "expo-image"
 import { useRouter } from "expo-router"
+import { useEffect } from "react"
 import {
   Pressable,
   ScrollView,
@@ -9,6 +10,9 @@ import {
   useWindowDimensions,
   View,
 } from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
+
+import { getSessionUser } from "../lib/session"
 
 const avocadoImage =
   "https://images.unsplash.com/photo-1601039641847-7857b994d704?auto=format&fit=crop&w=1200&q=85"
@@ -45,8 +49,17 @@ export default function LandingPage() {
   const isDesktop = width >= 900
   const isTablet = width >= 680
 
+  useEffect(() => {
+    getSessionUser().then((user) => {
+      if (user?.role) {
+        router.replace(`/${user.role}`)
+      }
+    })
+  }, [router])
+
   return (
-    <ScrollView style={styles.page} contentContainerStyle={styles.scrollContent}>
+    <SafeAreaView className="flex-1">
+      <ScrollView style={styles.page} contentContainerStyle={styles.scrollContent}>
       <View style={styles.headerShell}>
         <View style={styles.header}>
           <View style={styles.brand}>
@@ -72,13 +85,13 @@ export default function LandingPage() {
       <View style={styles.heroBand}>
         <View style={[styles.container, styles.hero, isDesktop && styles.heroDesktop]}>
           <View style={styles.heroCopy}>
-            <Text style={styles.eyebrow}>Empowering Kenya's Growers</Text>
+            <Text style={styles.eyebrow}>Empowering Kenya’s Growers</Text>
             <Text style={[styles.heroTitle, !isTablet && styles.heroTitleMobile]}>
               Fair Prices.{"\n"}Full Transparency.{"\n"}
               <Text style={styles.heroAccent}>Direct to Market.</Text>
             </Text>
             <Text style={styles.heroBody}>
-              CEMS connects Kenya's avocado farmers directly to global buyers. No middlemen,
+              CEMS connects Kenya’s avocado farmers directly to global buyers. No middlemen,
               no manipulation, just data-driven export access.
             </Text>
             <View style={[styles.heroActions, !isTablet && styles.heroActionsMobile]}>
@@ -200,7 +213,8 @@ export default function LandingPage() {
           <Text style={styles.footerText}>2026 CEMS Kenya. Cultivating Export Excellence.</Text>
         </View>
       </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   )
 }
 

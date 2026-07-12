@@ -13,14 +13,13 @@ import {
   Platform,
   ActivityIndicator
 } from "react-native"
-import AsyncStorage from "@react-native-async-storage/async-storage"
+import { SafeAreaView } from "react-native-safe-area-context"
 
-type Role = "farmer" | "manager" | "buyer"
+import api from "../../lib/api"
+import { saveSession, type Role } from "../../lib/session"
 
 const roles: Role[] = ["farmer", "manager", "buyer"]
 const logo = require("../../assets/cemslogo.svg")
-
-const API_URL = "http://localhost:5000/api"
 
 export default function LoginScreen() {
   const router = useRouter()
@@ -43,38 +42,28 @@ export default function LoginScreen() {
     setError("");
 
     try {
-      const res = await fetch(`${API_URL}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Login failed");
-      }
-
-      await AsyncStorage.setItem("token", data.token);
-      await AsyncStorage.setItem("user", JSON.stringify(data.user));
+      const { data } = await api.post("/auth/login", { email, password })
+      await saveSession(data.token, data.user)
 
       // Always route to their database-assigned role rather than the selected tab
       router.replace(`/${data.user.role}`);
     } catch (err: any) {
-      setError(err.message);
+      setError(err?.response?.data?.error || err.message);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      className="flex-1 bg-stone-500"
-    >
-      <ScrollView 
-        contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 16 }}
-        keyboardShouldPersistTaps="handled"
+    <SafeAreaView className="flex-1 bg-stone-500">
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        className="flex-1 bg-stone-500"
       >
+        <ScrollView 
+          contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          keyboardShouldPersistTaps="handled"
+        >
         <View 
           className={`bg-[#EAEAEA] rounded-3xl p-6 pb-12 shadow-lg relative overflow-hidden w-full ${
             isWide ? 'max-w-2xl p-12' : 'max-w-md'
@@ -192,7 +181,7 @@ export default function LoginScreen() {
           {/* Footer */}
           <View className="flex-col items-center gap-1 mb-4">
             <Text className="text-gray-500 font-medium text-sm">
-              Don't have an account?
+              Don&apos;t have an account?
             </Text>
             <Pressable onPress={() => router.push({ pathname: "/(auth)/onboarding", params: { role } })}>
               <Text className="text-gray-500 underline font-medium text-sm">
@@ -202,8 +191,9 @@ export default function LoginScreen() {
           </View>
 
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   )
 }
 

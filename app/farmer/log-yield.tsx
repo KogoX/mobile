@@ -1,37 +1,42 @@
 import { useState } from "react";
-import { View, Text, TextInput, Pressable, ScrollView } from "react-native";
+import { View, Text, TextInput, Pressable, ScrollView, Alert } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
+import { SafeAreaView } from "react-native-safe-area-context"
+
+import api from "../../lib/api"
 
 export default function LogYield() {
   const [season, setSeason] = useState("Main Season 2024");
   const [quantity, setQuantity] = useState("");
   const [grade, setGrade] = useState("A");
   const [date, setDate] = useState("2024-06-15");
+  const [loading, setLoading] = useState(false)
 
   const handleSubmit = async () => {
-    if (!quantity) return;
+    if (!quantity) {
+      Alert.alert("Missing quantity", "Please enter a yield quantity.")
+      return
+    }
+
     try {
-      const res = await fetch("http://localhost:5000/api/yields", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cropSeason: season,
-          quantity: parseInt(quantity),
-          grade,
-          date
-        })
-      });
-      if (res.ok) {
-        alert("Yield logged successfully!");
-        setQuantity("");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Failed to log yield");
+      setLoading(true)
+      await api.post("/yields", {
+        cropSeason: season,
+        quantity: Number(quantity),
+        grade,
+        date
+      })
+      Alert.alert("Saved", "Yield logged successfully.")
+      setQuantity("")
+    } catch (err: any) {
+      Alert.alert("Failed to log yield", err?.response?.data?.error || err.message)
+    } finally {
+      setLoading(false)
     }
   };
 
   return (
+    <SafeAreaView className="flex-1 bg-[#FCF9F8]">
     <ScrollView className="flex-1 bg-[#FCF9F8] p-5">
       <View className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm">
         <Text className="text-[#2A5C43] text-2xl font-black mb-4">Log New Harvest</Text>
@@ -84,12 +89,14 @@ export default function LogYield() {
         
         <Pressable 
           onPress={handleSubmit}
-          className="mt-6 bg-[#2A5C43] rounded-full min-h-[54px] flex-row items-center justify-center gap-2 active:opacity-80"
+          disabled={loading}
+          className={`mt-6 rounded-full min-h-[54px] flex-row items-center justify-center gap-2 ${loading ? "bg-[#6d9a86]" : "bg-[#2A5C43]"}`}
         >
           <MaterialIcons name="add-task" size={20} color="#ffffff" />
-          <Text className="text-white font-black text-sm">Submit Yield Record</Text>
+          <Text className="text-white font-black text-sm">{loading ? "Saving..." : "Submit Yield Record"}</Text>
         </Pressable>
       </View>
     </ScrollView>
+    </SafeAreaView>
   );
 }
