@@ -2,7 +2,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage"
 import axios from "axios"
 import Constants from "expo-constants"
 
+const expoHostUri = Constants.expoConfig?.hostUri
+const inferredLocalUrl = expoHostUri ? `http://${expoHostUri.split(":")[0]}:5000` : undefined
+
 const configuredUrl =
+  inferredLocalUrl ||
   process.env.EXPO_PUBLIC_API_URL ||
   (Constants.expoConfig?.extra?.apiUrl as string | undefined) ||
   "http://localhost:5000"

@@ -53,7 +53,6 @@ export default function OnboardingScreen() {
         <ScrollView contentContainerStyle={{ padding: 20 }}>
           <View className="bg-white rounded-2xl p-6 border border-gray-200">
             <Text className="text-3xl font-black text-[#2A5C43] mb-2">Create account</Text>
-            <Text className="text-gray-500 mb-5">Your details will be saved directly to the live database.</Text>
 
             <Text className="text-[11px] font-bold text-gray-500 uppercase mb-2">Role</Text>
             <View className="flex-row gap-2 mb-4">
