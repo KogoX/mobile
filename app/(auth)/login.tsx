@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons"
 import { Image } from "expo-image"
 import { useRouter } from "expo-router"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   Pressable,
   ScrollView,
@@ -16,7 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import api from "../../lib/api"
-import { saveSession, type Role } from "../../lib/session"
+import { isBiometricSignInEnabled, saveSession, signInWithBiometrics, type Role } from "../../lib/session"
 
 const roles: Role[] = ["farmer", "manager", "buyer"]
 const logo = require("../../assets/cemslogo.svg")
@@ -29,9 +29,14 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("")
   const [remember, setRemember] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [biometricReady, setBiometricReady] = useState(false)
   const [error, setError] = useState("")
   
   const isWide = width >= 760
+
+  useEffect(() => {
+    isBiometricSignInEnabled().then(setBiometricReady).catch(() => setBiometricReady(false))
+  }, [])
 
   const signIn = async () => {
     if (!email || !password) {
@@ -51,6 +56,20 @@ export default function LoginScreen() {
       setError(err?.response?.data?.error || err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  const biometricSignIn = async () => {
+    setLoading(true)
+    setError("")
+
+    try {
+      const user = await signInWithBiometrics()
+      router.replace(`/${user.role}`)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -177,6 +196,19 @@ export default function LoginScreen() {
               {loading ? "Signing In..." : "Sign In"}
             </Text>
           </Pressable>
+
+          {biometricReady ? (
+            <Pressable
+              className="bg-white border border-[#2A5C43] rounded-xl py-4 mb-8 flex-row justify-center items-center"
+              onPress={biometricSignIn}
+              disabled={loading}
+            >
+              <MaterialIcons name="fingerprint" size={21} color="#2A5C43" />
+              <Text className="text-[#2A5C43] text-center font-bold text-base ml-2">
+                Sign in with biometrics
+              </Text>
+            </Pressable>
+          ) : null}
 
           {/* Footer */}
           <View className="flex-col items-center gap-1 mb-4">

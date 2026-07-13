@@ -1,16 +1,52 @@
 import { useState } from "react";
+import { Image } from "expo-image"
+import * as ImagePicker from "expo-image-picker"
 import { View, Text, TextInput, Pressable, ScrollView, Alert } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import api from "../../lib/api"
 
+const MAX_PHOTOS = 5
+
 export default function LogYield() {
   const [season, setSeason] = useState("Main Season 2026");
   const [quantity, setQuantity] = useState("");
   const [grade, setGrade] = useState("A");
   const [date, setDate] = useState("15/06/2026");
+  const [photos, setPhotos] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
+
+  const pickPhotos = async () => {
+    if (photos.length >= MAX_PHOTOS) {
+      Alert.alert("Photo limit reached", `You can upload up to ${MAX_PHOTOS} photos per yield.`)
+      return
+    }
+
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (!permission.granted) {
+      Alert.alert("Permission needed", "Allow photo access to attach harvest photos.")
+      return
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsMultipleSelection: true,
+      base64: true,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.45,
+      selectionLimit: MAX_PHOTOS - photos.length
+    })
+
+    if (result.canceled) return
+
+    const selected = result.assets
+      .slice(0, MAX_PHOTOS - photos.length)
+      .map((asset) =>
+        asset.base64 ? `data:${asset.mimeType || "image/jpeg"};base64,${asset.base64}` : asset.uri
+      )
+
+    setPhotos((current) => [...current, ...selected].slice(0, MAX_PHOTOS))
+  }
 
   const handleSubmit = async () => {
     if (!quantity) {
@@ -24,10 +60,12 @@ export default function LogYield() {
         cropSeason: season,
         quantity: Number(quantity),
         grade,
-        date: toApiDate(date)
+        date: toApiDate(date),
+        photos
       })
       Alert.alert("Saved", "Yield logged successfully.")
       setQuantity("")
+      setPhotos([])
     } catch (err: any) {
       Alert.alert("Failed to log yield", err?.response?.data?.error || err.message)
     } finally {
@@ -86,6 +124,36 @@ export default function LogYield() {
             onChangeText={setDate}
             placeholder="dd/mm/yyyy"
           />
+        </View>
+
+        <View className="mt-4">
+          <Text className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2 ml-1">Harvest Photos</Text>
+          <Pressable
+            onPress={pickPhotos}
+            className="min-h-[54px] rounded-xl border border-dashed border-[#2A5C43] bg-[#F4FBF7] flex-row items-center justify-center gap-2"
+          >
+            <MaterialIcons name="add-photo-alternate" size={22} color="#2A5C43" />
+            <Text className="text-[#2A5C43] font-black">
+              {photos.length ? `Add More Photos (${photos.length}/${MAX_PHOTOS})` : "Add Yield Photos"}
+            </Text>
+          </Pressable>
+          {photos.length ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-3">
+              <View className="flex-row gap-2">
+                {photos.map((uri, index) => (
+                  <View key={`${uri}-${index}`} className="relative">
+                    <Image source={{ uri }} style={{ width: 86, height: 86, borderRadius: 12 }} contentFit="cover" />
+                    <Pressable
+                      onPress={() => setPhotos((items) => items.filter((_, itemIndex) => itemIndex !== index))}
+                      className="absolute -top-1 -right-1 h-7 w-7 rounded-full bg-red-500 items-center justify-center"
+                    >
+                      <MaterialIcons name="close" size={16} color="#ffffff" />
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
+          ) : null}
         </View>
         
         <Pressable 

@@ -21,8 +21,8 @@ export default function BuyerLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Dashboard",
-          tabBarIcon: ({ color }) => <MaterialIcons name="dashboard" size={24} color={color} />,
+          title: "Market",
+          tabBarIcon: ({ color }) => <MaterialIcons name="storefront" size={24} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -30,6 +30,20 @@ export default function BuyerLayout() {
         options={{
           title: "Orders",
           tabBarIcon: ({ color }) => <MaterialIcons name="shopping-cart" size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="invoices"
+        options={{
+          title: "Invoices",
+          tabBarIcon: ({ color }) => <MaterialIcons name="receipt-long" size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Profile",
+          tabBarIcon: ({ color }) => <MaterialIcons name="person" size={24} color={color} />,
         }}
       />
     </Tabs>

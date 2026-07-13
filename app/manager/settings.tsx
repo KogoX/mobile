@@ -1,10 +1,19 @@
 import { useFocusEffect, useRouter } from "expo-router"
+import { MaterialIcons } from "@expo/vector-icons"
+import AsyncStorage from "@react-native-async-storage/async-storage"
 import { useCallback, useState } from "react"
-import { Pressable, ScrollView, Text, View } from "react-native"
+import { Alert, Pressable, ScrollView, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import api from "../../lib/api"
-import { clearSession } from "../../lib/session"
+import {
+  canUseBiometrics,
+  clearSession,
+  disableBiometricSignIn,
+  enableBiometricSignIn,
+  isBiometricSignInEnabled,
+  type SessionUser
+} from "../../lib/session"
 
 type Profile = {
   name: string
@@ -18,10 +27,12 @@ type Profile = {
 export default function ManagerSettings() {
   const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [biometricEnabled, setBiometricEnabled] = useState(false)
 
   const refresh = useCallback(async () => {
     const { data } = await api.get("/auth/me")
     setProfile(data)
+    setBiometricEnabled(await isBiometricSignInEnabled())
   }, [])
 
   useFocusEffect(
@@ -33,6 +44,35 @@ export default function ManagerSettings() {
   async function logout() {
     await clearSession()
     router.replace("/(auth)/login")
+  }
+
+  async function toggleBiometrics() {
+    try {
+      if (biometricEnabled) {
+        await disableBiometricSignIn()
+        setBiometricEnabled(false)
+        return
+      }
+
+      if (!profile) return
+
+      const available = await canUseBiometrics()
+      if (!available) {
+        Alert.alert("Biometrics unavailable", "Add a fingerprint or face unlock on this phone first.")
+        return
+      }
+
+      const token = await AsyncStorage.getItem("token")
+      if (!token) {
+        Alert.alert("Sign in again", "Please sign in with your password before enabling biometrics.")
+        return
+      }
+
+      await enableBiometricSignIn(token, profile as SessionUser)
+      setBiometricEnabled(true)
+    } catch (error: any) {
+      Alert.alert("Biometric setup failed", error.message)
+    }
   }
 
   return (
@@ -51,6 +91,16 @@ export default function ManagerSettings() {
             <Row label="Status" value={profile.status || "Active"} />
           </View>
         ) : null}
+
+        <Pressable
+          onPress={toggleBiometrics}
+          className="rounded-xl bg-white border border-gray-200 py-4 flex-row items-center justify-center gap-2 mb-3"
+        >
+          <MaterialIcons name="fingerprint" size={20} color="#2A5C43" />
+          <Text className="text-[#2A5C43] font-black">
+            {biometricEnabled ? "Disable biometric sign in" : "Enable biometric sign in"}
+          </Text>
+        </Pressable>
 
         <Pressable onPress={logout} className="rounded-xl bg-[#2A5C43] py-3 items-center">
           <Text className="text-white font-black">Logout</Text>

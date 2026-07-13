@@ -33,6 +33,13 @@ export default function ManagerLayout() {
         }}
       />
       <Tabs.Screen
+        name="users"
+        options={{
+          title: "Users",
+          tabBarIcon: ({ color }) => <MaterialIcons name="manage-accounts" size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="orders"
         options={{
           title: "Orders",

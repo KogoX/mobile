@@ -4,7 +4,27 @@
     "slug": "cems",
     "version": "1.0.0",
     "userInterfaceStyle": "automatic",
-    "platforms": ["ios", "android","web"],
-    "orientation": "portrait"
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "orientation": "portrait",
+    "plugins": [
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow CEMS to use Face ID or fingerprint authentication for sign in."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow CEMS to select harvest photos for yield records."
+        }
+      ],
+      "expo-notifications",
+      "expo-secure-store"
+    ]
   }
 }

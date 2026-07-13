@@ -7,6 +7,8 @@ import api from "../../lib/api"
 
 type Order = {
   id: number
+  farmer?: string | null
+  yield_id?: number | null
   quantity: string
   produce: string
   unit_price: string
@@ -64,6 +66,9 @@ export default function BuyerOrders() {
               <Text className="text-gray-700 mt-1">{order.produce}</Text>
               <Text className="text-gray-700">Qty: {Number(order.quantity).toLocaleString()} kg</Text>
               <Text className="text-gray-700">Unit Price: KES {Number(order.unit_price).toLocaleString()}</Text>
+              <Text className="text-gray-700">
+                Fulfillment: {order.farmer ? `${order.farmer} harvest #${order.yield_id}` : "Awaiting manager match"}
+              </Text>
               <Text className="text-gray-900 font-bold mt-1">
                 Total: KES {Number(order.total_amount).toLocaleString()}
               </Text>

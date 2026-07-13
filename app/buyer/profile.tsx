@@ -25,34 +25,24 @@ type Profile = {
   created_at?: string
 }
 
-type YieldItem = {
+type Order = {
   id: number
   quantity: string
-  grade: string
-}
-
-type PaymentItem = {
-  id: number
-  amount: string
+  total_amount: string
   status: string
+  payment_status: string | null
 }
 
-export default function FarmerProfile() {
+export default function BuyerProfile() {
   const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [yields, setYields] = useState<YieldItem[]>([])
-  const [payments, setPayments] = useState<PaymentItem[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
   const [biometricEnabled, setBiometricEnabled] = useState(false)
 
   const refresh = useCallback(async () => {
-    const [profileRes, yieldRes, paymentRes] = await Promise.all([
-      api.get("/auth/me"),
-      api.get("/yields"),
-      api.get("/payments")
-    ])
+    const [profileRes, orderRes] = await Promise.all([api.get("/auth/me"), api.get("/orders")])
     setProfile(profileRes.data)
-    setYields(yieldRes.data)
-    setPayments(paymentRes.data)
+    setOrders(orderRes.data)
     setBiometricEnabled(await isBiometricSignInEnabled())
   }, [])
 
@@ -63,20 +53,13 @@ export default function FarmerProfile() {
   )
 
   const stats = useMemo(() => {
-    const totalYield = yields.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
-    const verifiedPayments = payments
-      .filter((item) => item.status === "Verified")
-      .reduce((sum, item) => sum + Number(item.amount || 0), 0)
-    const gradeA = yields
-      .filter((item) => item.grade === "A")
-      .reduce((sum, item) => sum + Number(item.quantity || 0), 0)
-
+    const paidOrders = orders.filter((order) => order.status === "Paid" || order.payment_status === "Verified")
     return {
-      totalYield,
-      verifiedPayments,
-      gradeShare: totalYield ? Math.round((gradeA / totalYield) * 100) : 0
+      totalOrders: orders.length,
+      paidValue: paidOrders.reduce((sum, order) => sum + Number(order.total_amount || 0), 0),
+      quantity: orders.reduce((sum, order) => sum + Number(order.quantity || 0), 0)
     }
-  }, [payments, yields])
+  }, [orders])
 
   async function logout() {
     await clearSession()
@@ -115,30 +98,14 @@ export default function FarmerProfile() {
   return (
     <SafeAreaView className="flex-1 bg-[#FCF9F8]">
       <ScrollView className="flex-1 p-5" contentContainerStyle={{ paddingBottom: 30 }}>
-        <View className="flex-row items-center justify-between mb-1">
-          <Text className="text-3xl font-black text-[#2A5C43]">Profile</Text>
-          <View className="flex-row gap-2">
-            <Pressable
-              onPress={() => router.push("/")}
-              className="h-11 w-11 rounded-full bg-white border border-gray-200 items-center justify-center"
-            >
-              <MaterialIcons name="home" size={22} color="#2A5C43" />
-            </Pressable>
-            <Pressable
-              onPress={() => router.push("/farmer")}
-              className="h-11 w-11 rounded-full bg-white border border-gray-200 items-center justify-center"
-            >
-              <MaterialIcons name="dashboard" size={22} color="#2A5C43" />
-            </Pressable>
-          </View>
-        </View>
-        <Text className="text-gray-500 mt-1 mb-5">Your live account and farm performance summary.</Text>
+        <Text className="text-3xl font-black text-[#2A5C43]">Profile</Text>
+        <Text className="text-gray-500 mt-1 mb-5">Buyer account and purchasing summary.</Text>
 
         <View className="bg-[#125C3F] rounded-2xl p-5 mb-4">
           <View className="h-14 w-14 rounded-full bg-white/15 items-center justify-center mb-4">
-            <MaterialIcons name="person" size={30} color="#ffffff" />
+            <MaterialIcons name="business" size={30} color="#ffffff" />
           </View>
-          <Text className="text-white text-2xl font-black">{profile?.name || "Farmer"}</Text>
+          <Text className="text-white text-2xl font-black">{profile?.name || "Buyer"}</Text>
           <Text className="text-[#D7F3E5] mt-1">{profile?.email || "Loading account..."}</Text>
           <View className="self-start bg-white/15 rounded-full px-3 py-1 mt-3">
             <Text className="text-white text-[11px] uppercase font-black">{profile?.status || "Active"}</Text>
@@ -146,21 +113,18 @@ export default function FarmerProfile() {
         </View>
 
         <View className="flex-row gap-3 mb-4">
-          <Metric label="Yield" value={`${stats.totalYield.toLocaleString()} kg`} />
-          <Metric label="Paid" value={`KES ${stats.verifiedPayments.toLocaleString()}`} />
+          <Metric label="Orders" value={stats.totalOrders.toLocaleString()} />
+          <Metric label="Volume" value={`${stats.quantity.toLocaleString()} kg`} />
         </View>
         <View className="bg-white rounded-2xl p-4 border border-gray-200 mb-4">
-          <Text className="text-[11px] text-gray-500 uppercase font-black">Grade A Share</Text>
-          <View className="h-3 bg-gray-100 rounded-full mt-3 overflow-hidden">
-            <View className="h-3 bg-[#2A5C43] rounded-full" style={{ width: `${stats.gradeShare}%` }} />
-          </View>
-          <Text className="text-gray-800 font-black mt-2">{stats.gradeShare}% of logged yield</Text>
+          <Text className="text-[11px] text-gray-500 uppercase font-black">Paid Purchase Value</Text>
+          <Text className="text-[#2A5C43] text-2xl font-black mt-1">KES {stats.paidValue.toLocaleString()}</Text>
         </View>
 
         {profile ? (
           <View className="bg-white rounded-2xl p-4 border border-gray-200 mb-4">
             <Row label="Phone" value={profile.phone || "Not set"} />
-            <Row label="Location" value={profile.location || "Not set"} />
+            <Row label="Company / Location" value={profile.location || "Not set"} />
             <Row label="Role" value={profile.role} />
             <Row
               label="Member Since"
