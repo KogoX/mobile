@@ -54,6 +54,13 @@ export default function ManagerLayout() {
         }}
       />
       <Tabs.Screen
+        name="disburse"
+        options={{
+          title: "Disburse",
+          tabBarIcon: ({ color }) => <MaterialIcons name="account-balance-wallet" size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: "Settings",

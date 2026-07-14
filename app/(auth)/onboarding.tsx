@@ -9,6 +9,16 @@ import { saveSession, type Role } from "../../lib/session"
 
 const roles: Role[] = ["farmer", "manager", "buyer"]
 
+const COUNTRY_CODES = [
+  { code: "+254", label: "Kenya" },
+  { code: "+255", label: "Tanzania" },
+  { code: "+256", label: "Uganda" },
+  { code: "+250", label: "Rwanda" },
+  { code: "+257", label: "Burundi" },
+  { code: "+44", label: "United Kingdom" },
+  { code: "+1", label: "USA / Canada" }
+]
+
 export default function OnboardingScreen() {
   const router = useRouter()
   const params = useLocalSearchParams<{ role?: string }>()
@@ -17,7 +27,9 @@ export default function OnboardingScreen() {
   const [role, setRole] = useState<Role>(initialRole)
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
+  const [dialCode, setDialCode] = useState("+254")
   const [phone, setPhone] = useState("")
+  const [showCodes, setShowCodes] = useState(false)
   const [location, setLocation] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
@@ -28,12 +40,19 @@ export default function OnboardingScreen() {
       return
     }
 
+    const normalizedPhone = phone.replace(/[^0-9]/g, "")
+    if (phone && normalizedPhone.length < 6) {
+      Alert.alert("Invalid phone", "Please enter a valid mobile number.")
+      return
+    }
+    const fullPhone = phone ? `${dialCode}${normalizedPhone}` : ""
+
     try {
       setLoading(true)
       const { data } = await api.post("/auth/register", {
         name,
         email,
-        phone,
+        phone: fullPhone,
         location,
         password,
         role
@@ -71,7 +90,50 @@ export default function OnboardingScreen() {
 
             <Field label="Full Name" value={name} onChangeText={setName} icon="person-outline" />
             <Field label="Email" value={email} onChangeText={setEmail} icon="mail-outline" keyboardType="email-address" />
-            <Field label="Phone" value={phone} onChangeText={setPhone} icon="phone" keyboardType="phone-pad" />
+            <View className="mb-3">
+              <Text className="text-[11px] font-bold text-gray-500 uppercase mb-1">Phone</Text>
+              <View className="flex-row items-center bg-gray-50 border border-gray-200 rounded-xl px-3">
+                <MaterialIcons name="phone" size={18} color="#6b7280" />
+                <Pressable
+                  onPress={() => setShowCodes((value) => !value)}
+                  className="flex-row items-center pl-2 pr-2 border-r border-gray-200"
+                >
+                  <Text className="text-gray-800 font-bold min-w-[44px] text-center">{dialCode}</Text>
+                  <MaterialIcons name="arrow-drop-down" size={18} color="#6b7280" />
+                </Pressable>
+                <TextInput
+                  className="flex-1 min-h-[44px] ml-2 text-gray-800"
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                  placeholder="712 345 678"
+                  placeholderTextColor="#A1A1AA"
+                  autoCapitalize="none"
+                  style={{ outlineStyle: "none" } as never}
+                />
+              </View>
+              {showCodes ? (
+                <View className="mt-1 bg-white border border-gray-200 rounded-xl max-h-[180px] overflow-hidden">
+                  <ScrollView className="max-h-[180px]">
+                    {COUNTRY_CODES.map((item) => (
+                      <Pressable
+                        key={item.code}
+                        onPress={() => {
+                          setDialCode(item.code)
+                          setShowCodes(false)
+                        }}
+                        className={`flex-row items-center justify-between px-4 py-3 border-b border-gray-100 ${
+                          item.code === dialCode ? "bg-[#F4FBF7]" : ""
+                        }`}
+                      >
+                        <Text className="text-gray-800 font-medium">{item.label}</Text>
+                        <Text className="text-[#2A5C43] font-black">{item.code}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              ) : null}
+            </View>
             <Field
               label={role === "buyer" ? "Company / Location" : "Location"}
               value={location}

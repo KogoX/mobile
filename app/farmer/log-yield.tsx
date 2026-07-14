@@ -17,25 +17,44 @@ export default function LogYield() {
   const [photos, setPhotos] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
 
-  const pickPhotos = async () => {
+  async function capturePhoto(useCamera: boolean) {
     if (photos.length >= MAX_PHOTOS) {
       Alert.alert("Photo limit reached", `You can upload up to ${MAX_PHOTOS} photos per yield.`)
       return
     }
 
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
-    if (!permission.granted) {
-      Alert.alert("Permission needed", "Allow photo access to attach harvest photos.")
-      return
+    let permission
+    if (useCamera) {
+      permission = await ImagePicker.requestCameraPermissionsAsync()
+      if (!permission.granted) {
+        Alert.alert("Permission needed", "Allow camera access to capture harvest photos.")
+        return
+      }
+    } else {
+      permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
+      if (!permission.granted) {
+        Alert.alert("Permission needed", "Allow photo access to attach harvest photos.")
+        return
+      }
     }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      allowsMultipleSelection: true,
-      base64: true,
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.45,
-      selectionLimit: MAX_PHOTOS - photos.length
-    })
+    let result: ImagePicker.ImagePickerResult
+    if (useCamera) {
+      result = await ImagePicker.launchCameraAsync({
+        base64: true,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.45,
+        cameraType: ImagePicker.CameraType.back
+      })
+    } else {
+      result = await ImagePicker.launchImageLibraryAsync({
+        allowsMultipleSelection: true,
+        base64: true,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.45,
+        selectionLimit: MAX_PHOTOS - photos.length
+      })
+    }
 
     if (result.canceled) return
 
@@ -128,15 +147,24 @@ export default function LogYield() {
 
         <View className="mt-4">
           <Text className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2 ml-1">Harvest Photos</Text>
-          <Pressable
-            onPress={pickPhotos}
-            className="min-h-[54px] rounded-xl border border-dashed border-[#2A5C43] bg-[#F4FBF7] flex-row items-center justify-center gap-2"
-          >
-            <MaterialIcons name="add-photo-alternate" size={22} color="#2A5C43" />
-            <Text className="text-[#2A5C43] font-black">
-              {photos.length ? `Add More Photos (${photos.length}/${MAX_PHOTOS})` : "Add Yield Photos"}
-            </Text>
-          </Pressable>
+          <View className="flex-row gap-2">
+            <Pressable
+              onPress={() => capturePhoto(false)}
+              className="flex-1 min-h-[54px] rounded-xl border border-dashed border-[#2A5C43] bg-[#F4FBF7] flex-row items-center justify-center gap-2"
+            >
+              <MaterialIcons name="add-photo-alternate" size={22} color="#2A5C43" />
+              <Text className="text-[#2A5C43] font-black">
+                {photos.length ? `Library (${photos.length}/${MAX_PHOTOS})` : "Add Photos"}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => capturePhoto(true)}
+              className="flex-1 min-h-[54px] rounded-xl border border-dashed border-[#2A5C43] bg-[#F4FBF7] flex-row items-center justify-center gap-2"
+            >
+              <MaterialIcons name="photo-camera" size={22} color="#2A5C43" />
+              <Text className="text-[#2A5C43] font-black">Camera</Text>
+            </Pressable>
+          </View>
           {photos.length ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-3">
               <View className="flex-row gap-2">
