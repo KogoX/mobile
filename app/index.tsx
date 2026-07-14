@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons"
 import { Image } from "expo-image"
 import { useRouter } from "expo-router"
-import { useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   Pressable,
   ScrollView,
@@ -49,6 +49,12 @@ export default function LandingPage() {
   const isDesktop = width >= 900
   const isTablet = width >= 680
 
+  const scrollRef = useRef<ScrollView>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [statsY, setStatsY] = useState(0)
+  const [advantagesY, setAdvantagesY] = useState(0)
+  const [stepsY, setStepsY] = useState(0)
+
   useEffect(() => {
     getSessionUser().then((user) => {
       if (user?.role) {
@@ -59,7 +65,7 @@ export default function LandingPage() {
 
   return (
     <SafeAreaView className="flex-1">
-      <ScrollView style={styles.page} contentContainerStyle={styles.scrollContent}>
+      <ScrollView ref={scrollRef} style={styles.page} contentContainerStyle={styles.scrollContent}>
       <View style={styles.headerShell}>
         <View style={styles.header}>
           <View style={styles.brand}>
@@ -69,17 +75,47 @@ export default function LandingPage() {
 
           {isTablet ? (
             <View style={styles.nav}>
-              <Text style={[styles.navItem, styles.navActive]}>Home</Text>
-              <Text style={styles.navItem}>Marketplace</Text>
-              <Text style={styles.navItem}>Impact</Text>
-              <Text style={styles.navItem}>Resources</Text>
+              <Pressable onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}>
+                <Text style={[styles.navItem, styles.navActive]}>Home</Text>
+              </Pressable>
+              <Pressable onPress={() => scrollRef.current?.scrollTo({ y: statsY, animated: true })}>
+                <Text style={styles.navItem}>Impact</Text>
+              </Pressable>
+              <Pressable onPress={() => scrollRef.current?.scrollTo({ y: advantagesY, animated: true })}>
+                <Text style={styles.navItem}>Advantages</Text>
+              </Pressable>
+              <Pressable onPress={() => scrollRef.current?.scrollTo({ y: stepsY, animated: true })}>
+                <Text style={styles.navItem}>How It Works</Text>
+              </Pressable>
             </View>
-          ) : null}
+          ) : (
+            <View className="flex-row items-center gap-4">
+              <Pressable onPress={() => setMenuOpen(!menuOpen)} style={{ padding: 4 }}>
+                <MaterialIcons name={menuOpen ? "close" : "menu"} size={28} color="#0f5238" />
+              </Pressable>
+            </View>
+          )}
 
           <Pressable style={styles.loginButton} onPress={() => router.push("/(auth)/login")}>
             <Text style={styles.loginText}>Login</Text>
           </Pressable>
         </View>
+        {!isTablet && menuOpen && (
+          <View style={styles.mobileMenu}>
+            <Pressable style={styles.mobileMenuItem} onPress={() => { scrollRef.current?.scrollTo({ y: 0, animated: true }); setMenuOpen(false); }}>
+              <Text style={styles.mobileMenuText}>Home</Text>
+            </Pressable>
+            <Pressable style={styles.mobileMenuItem} onPress={() => { scrollRef.current?.scrollTo({ y: statsY, animated: true }); setMenuOpen(false); }}>
+              <Text style={styles.mobileMenuText}>Impact</Text>
+            </Pressable>
+            <Pressable style={styles.mobileMenuItem} onPress={() => { scrollRef.current?.scrollTo({ y: advantagesY, animated: true }); setMenuOpen(false); }}>
+              <Text style={styles.mobileMenuText}>Advantages</Text>
+            </Pressable>
+            <Pressable style={styles.mobileMenuItem} onPress={() => { scrollRef.current?.scrollTo({ y: stepsY, animated: true }); setMenuOpen(false); }}>
+              <Text style={styles.mobileMenuText}>How It Works</Text>
+            </Pressable>
+          </View>
+        )}
       </View>
 
       <View style={styles.heroBand}>
@@ -125,7 +161,7 @@ export default function LandingPage() {
         </View>
       </View>
 
-      <View style={styles.sectionWhite}>
+      <View style={styles.sectionWhite} onLayout={(e) => setStatsY(e.nativeEvent.layout.y)}>
         <View style={styles.container}>
           <View style={[styles.statsPanel, isTablet && styles.statsPanelWide]}>
             <View style={styles.statsIntro}>
@@ -142,7 +178,7 @@ export default function LandingPage() {
         </View>
       </View>
 
-      <View style={styles.sectionMuted}>
+      <View style={styles.sectionMuted} onLayout={(e) => setAdvantagesY(e.nativeEvent.layout.y)}>
         <View style={styles.container}>
           <SectionHeader kicker="Advantages" title="Engineered for Transparency" />
           <View style={[styles.cardGrid, isTablet && styles.cardGridTablet, isDesktop && styles.cardGridDesktop]}>
@@ -159,11 +195,11 @@ export default function LandingPage() {
         </View>
       </View>
 
-      <View style={styles.sectionWhite}>
+      <View style={styles.sectionWhite} onLayout={(e) => setStepsY(e.nativeEvent.layout.y)}>
         <View style={styles.container}>
           <View style={[styles.sectionTop, isTablet && styles.sectionTopWide]}>
             <View>
-              <Text style={styles.kicker}>The Journey</Text>
+              <Text style={kicker => kicker}>The Journey</Text>
               <Text style={styles.sectionTitle}>How It Works</Text>
             </View>
             {isTablet ? <Text style={styles.sectionNote}>Simple. Secure. Export-ready.</Text> : null}
@@ -682,5 +718,22 @@ const styles = StyleSheet.create({
     textAlign: "center",
     textTransform: "uppercase",
     letterSpacing: 0.7,
+  },
+  mobileMenu: {
+    backgroundColor: "#ffffff",
+    borderBottomColor: "#dcebe2",
+    borderBottomWidth: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+  },
+  mobileMenuItem: {
+    paddingVertical: 12,
+    borderBottomColor: "#f0eded",
+    borderBottomWidth: 1,
+  },
+  mobileMenuText: {
+    color: "#0f5238",
+    fontSize: 16,
+    fontWeight: "700",
   },
 })

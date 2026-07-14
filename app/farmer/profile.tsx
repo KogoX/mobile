@@ -23,6 +23,7 @@ type Profile = {
   location?: string | null
   status?: string
   created_at?: string
+  unique_id?: string | null
 }
 
 type YieldItem = {
@@ -140,6 +141,9 @@ export default function FarmerProfile() {
           </View>
           <Text className="text-white text-2xl font-black">{profile?.name || "Farmer"}</Text>
           <Text className="text-[#D7F3E5] mt-1">{profile?.email || "Loading account..."}</Text>
+          {profile?.unique_id ? (
+            <Text className="text-[#D7F3E5] mt-1 font-bold">Unique ID: {profile.unique_id}</Text>
+          ) : null}
           <View className="self-start bg-white/15 rounded-full px-3 py-1 mt-3">
             <Text className="text-white text-[11px] uppercase font-black">{profile?.status || "Active"}</Text>
           </View>
@@ -159,6 +163,7 @@ export default function FarmerProfile() {
 
         {profile ? (
           <View className="bg-white rounded-2xl p-4 border border-gray-200 mb-4">
+            <Row label="Unique ID" value={profile.unique_id || "Not set"} />
             <Row label="Phone" value={profile.phone || "Not set"} />
             <Row label="Location" value={profile.location || "Not set"} />
             <Row label="Role" value={profile.role} />

@@ -23,6 +23,7 @@ type Profile = {
   location?: string | null
   status?: string
   created_at?: string
+  unique_id?: string | null
 }
 
 type Order = {
@@ -123,6 +124,7 @@ export default function BuyerProfile() {
 
         {profile ? (
           <View className="bg-white rounded-2xl p-4 border border-gray-200 mb-4">
+            <Row label="Unique ID" value={profile.unique_id || "Not set"} />
             <Row label="Phone" value={profile.phone || "Not set"} />
             <Row label="Company / Location" value={profile.location || "Not set"} />
             <Row label="Role" value={profile.role} />

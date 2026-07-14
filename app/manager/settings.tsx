@@ -22,6 +22,7 @@ type Profile = {
   phone?: string | null
   location?: string | null
   status?: string
+  unique_id?: string | null
 }
 
 export default function ManagerSettings() {
@@ -83,6 +84,7 @@ export default function ManagerSettings() {
 
         {profile ? (
           <View className="bg-white rounded-2xl p-4 border border-gray-200 mb-4">
+            <Row label="Unique ID" value={profile.unique_id || "Not set"} />
             <Row label="Name" value={profile.name} />
             <Row label="Email" value={profile.email} />
             <Row label="Role" value={profile.role} />

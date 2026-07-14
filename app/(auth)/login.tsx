@@ -84,8 +84,8 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
         >
         <View 
-          className={`bg-[#EAEAEA] rounded-3xl p-6 pb-12 shadow-lg relative overflow-hidden w-full ${
-            isWide ? 'max-w-2xl p-12' : 'max-w-md'
+          className={`bg-[#EAEAEA] rounded-3xl p-6 pb-8 shadow-lg relative overflow-hidden w-full ${
+            isWide ? 'max-w-[420px] p-8' : 'max-w-[340px]'
           }`}
         >
           {/* Decorative Bottom Right Circles */}
@@ -118,7 +118,7 @@ export default function LoginScreen() {
             <Text className="text-[10px] font-bold text-center text-gray-600 mb-3 tracking-widest uppercase">
               Select Role
             </Text>
-            <View className="flex-row justify-between">
+            <View className="flex-row justify-center gap-3">
               {roles.map((item) => {
                 const active = item === role
                 return (

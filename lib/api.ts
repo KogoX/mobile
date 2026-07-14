@@ -9,11 +9,15 @@ const expoHostUri = Constants.expoConfig?.hostUri
 const inferredLocalUrl = expoHostUri ? `http://${expoHostUri.split(":")[0]}:5000` : undefined
 
 // Priority: explicit env override > Expo dev host IP > app.json extra > emulator/host loopback > localhost
-const configuredUrl =
+let configuredUrl =
   explicitUrl ||
   inferredLocalUrl ||
   extraUrl ||
   (Platform.OS === "android" ? "http://10.0.2.2:5000" : "http://localhost:5000")
+
+if (Platform.OS === "web" && typeof window !== "undefined") {
+  configuredUrl = `http://${window.location.hostname}:5000`
+}
 
 const normalizedBase = configuredUrl.startsWith("http") ? configuredUrl : `http://${configuredUrl}`
 

@@ -16,6 +16,7 @@ type User = {
   location?: string | null
   status: string
   created_at: string
+  unique_id?: string | null
 }
 
 const filters: Array<Role | "all"> = ["all", "farmer", "buyer", "manager"]
@@ -94,6 +95,7 @@ export default function ManagerUsers() {
               </View>
 
               <View className="mt-3 gap-1">
+                {user.unique_id ? <Detail icon="fingerprint" value={`ID: ${user.unique_id}`} /> : null}
                 <Detail icon="phone" value={user.phone || "No phone set"} />
                 <Detail icon="location-on" value={user.location || "No location set"} />
                 <Detail icon="verified-user" value={user.status || "Active"} />
