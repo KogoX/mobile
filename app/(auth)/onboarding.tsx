@@ -15,8 +15,18 @@ const COUNTRY_CODES = [
   { code: "+256", label: "Uganda" },
   { code: "+250", label: "Rwanda" },
   { code: "+257", label: "Burundi" },
+  { code: "+27", label: "South Africa" },
+  { code: "+234", label: "Nigeria" },
   { code: "+44", label: "United Kingdom" },
-  { code: "+1", label: "USA / Canada" }
+  { code: "+1", label: "USA / Canada" },
+  { code: "+61", label: "Australia" },
+  { code: "+49", label: "Germany" },
+  { code: "+33", label: "France" },
+  { code: "+91", label: "India" },
+  { code: "+86", label: "China" },
+  { code: "+971", label: "UAE" },
+  { code: "+55", label: "Brazil" },
+  { code: "+81", label: "Japan" }
 ]
 
 export default function OnboardingScreen() {

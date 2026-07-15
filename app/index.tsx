@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { getSessionUser } from "../lib/session"
+import LanguageSelector from "../components/LanguageSelector"
 
 const avocadoImage =
   "https://images.unsplash.com/photo-1601039641847-7857b994d704?auto=format&fit=crop&w=1200&q=85"
@@ -89,16 +90,20 @@ export default function LandingPage() {
               </Pressable>
             </View>
           ) : (
-            <View className="flex-row items-center gap-4">
+            <View className="flex-row items-center gap-2">
+              <LanguageSelector color="#0f5238" />
               <Pressable onPress={() => setMenuOpen(!menuOpen)} style={{ padding: 4 }}>
                 <MaterialIcons name={menuOpen ? "close" : "menu"} size={28} color="#0f5238" />
               </Pressable>
             </View>
           )}
 
-          <Pressable style={styles.loginButton} onPress={() => router.push("/(auth)/login")}>
-            <Text style={styles.loginText}>Login</Text>
-          </Pressable>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            {isTablet && <LanguageSelector color="#0f5238" />}
+            <Pressable style={styles.loginButton} onPress={() => router.push("/(auth)/login")}>
+              <Text style={styles.loginText}>Login</Text>
+            </Pressable>
+          </View>
         </View>
         {!isTablet && menuOpen && (
           <View style={styles.mobileMenu}>

@@ -37,6 +37,7 @@ export default function BuyerDashboard() {
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null)
   const [photoModal, setPhotoModal] = useState<string | null>(null)
   const [activePhotoIndex, setActivePhotoIndex] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
   
   const photoScrollViewRef = useRef<ScrollView>(null)
 
@@ -79,6 +80,8 @@ export default function BuyerDashboard() {
       if (user?.unique_id) setUniqueId(user.unique_id)
     } catch {
       // network errors handled silently by api interceptor
+    } finally {
+      setIsLoading(false)
     }
   }, [])
 
@@ -214,7 +217,7 @@ export default function BuyerDashboard() {
           </View>
 
           {/* No listings */}
-          {approvedListings.length === 0 && (
+          {!isLoading && approvedListings.length === 0 && (
             <View className="items-center py-16">
               <MaterialIcons name="eco" size={56} color="#d1d5db" />
               <Text className="text-gray-400 font-black text-lg mt-4">No listings available</Text>
@@ -224,8 +227,30 @@ export default function BuyerDashboard() {
             </View>
           )}
 
+          {/* Loading Skeletons */}
+          {isLoading && (
+            <View>
+              {[1, 2, 3].map((key) => (
+                <View key={key} className="mb-4 rounded-2xl overflow-hidden border border-gray-100 bg-white opacity-70">
+                  <View className="h-[140px] bg-gray-200" />
+                  <View className="p-4">
+                    <View className="h-4 w-1/3 bg-gray-200 rounded-full mb-3" />
+                    <View className="h-6 w-1/2 bg-gray-200 rounded-full mb-2" />
+                    <View className="h-4 w-2/3 bg-gray-200 rounded-full mb-5" />
+                    <View className="flex-row gap-3">
+                      <View className="flex-1 h-8 bg-gray-200 rounded-lg" />
+                      <View className="flex-1 h-8 bg-gray-200 rounded-lg" />
+                      <View className="flex-1 h-8 bg-gray-200 rounded-lg" />
+                    </View>
+                    <View className="mt-5 h-12 w-full bg-gray-200 rounded-full" />
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+
           {/* Listings */}
-          {approvedListings.map((listing, index) => {
+          {!isLoading && approvedListings.map((listing, index) => {
             const isFeatured = index === 0
             const hasPhoto = listing.photos?.length > 0
 

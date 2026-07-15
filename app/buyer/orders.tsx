@@ -26,6 +26,7 @@ export default function BuyerOrders() {
   const [payingOrderId, setPayingOrderId] = useState<number | null>(null)
   const [methodOrder, setMethodOrder] = useState<Order | null>(null)
   const [buyerPhone, setBuyerPhone] = useState("")
+  const [isLoading, setIsLoading] = useState(true)
 
   const refresh = useCallback(async () => {
     try {
@@ -34,6 +35,8 @@ export default function BuyerOrders() {
       if (user?.phone) setBuyerPhone(user.phone)
     } catch (error) {
       console.warn("Failed to load orders:", error)
+    } finally {
+      setIsLoading(false)
     }
   }, [])
 
@@ -88,7 +91,29 @@ export default function BuyerOrders() {
         <Text className="text-3xl font-black text-[#2A5C43]">Orders & Payments</Text>
         <Text className="text-gray-500 mt-1 mb-5">Pay securely with card or M-Pesa via Paystack.</Text>
 
-        {orders.map((order) => {
+        {isLoading && (
+          <View>
+            {[1, 2, 3].map((key) => (
+              <View key={key} className="bg-white rounded-2xl p-4 border border-gray-100 mb-3 opacity-70">
+                <View className="h-6 w-1/3 bg-gray-200 rounded-full mb-2" />
+                <View className="h-4 w-1/2 bg-gray-200 rounded-full mb-1" />
+                <View className="h-4 w-1/2 bg-gray-200 rounded-full mb-1" />
+                <View className="h-4 w-2/3 bg-gray-200 rounded-full mb-2" />
+                <View className="h-5 w-1/4 bg-gray-200 rounded-full mb-2" />
+                <View className="h-4 w-1/2 bg-gray-200 rounded-full mb-4" />
+                <View className="h-12 w-full bg-gray-200 rounded-xl" />
+              </View>
+            ))}
+          </View>
+        )}
+
+        {!isLoading && orders.length === 0 && (
+          <View className="items-center py-16">
+            <Text className="text-gray-400 font-black text-lg mt-4">No orders found</Text>
+          </View>
+        )}
+
+        {!isLoading && orders.map((order) => {
           const isPaid = order.status === "Paid" || order.payment_status === "Verified"
           const processingPayment = payingOrderId === order.id
 

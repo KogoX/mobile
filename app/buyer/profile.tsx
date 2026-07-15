@@ -14,6 +14,7 @@ import {
   isBiometricSignInEnabled,
   type SessionUser
 } from "../../lib/session"
+import LanguageSelector from "../../components/LanguageSelector"
 
 type Profile = {
   name: string
@@ -98,7 +99,7 @@ export default function BuyerProfile() {
 
   async function logout() {
     await clearSession()
-    router.replace("/(auth)/login")
+    router.replace("/")
   }
 
   async function toggleBiometrics() {
@@ -132,6 +133,7 @@ export default function BuyerProfile() {
         {/* Header */}
         <View className="flex-row items-center justify-between mb-1">
           <Text className="text-3xl font-black text-[#2A5C43]">Profile</Text>
+          <LanguageSelector color="#6b7280" />
           {!editing && (
             <Pressable
               onPress={startEditing}
@@ -184,7 +186,7 @@ export default function BuyerProfile() {
             {editing ? (
               <>
                 <EditField label="Name" value={editName} onChangeText={setEditName} icon="person-outline" />
-                <EditField label="Phone" value={editPhone} onChangeText={setEditPhone} icon="phone" keyboardType="phone-pad" />
+                <EditField label="Phone" value={editPhone} onChangeText={setEditPhone} icon="phone" keyboardType="phone-pad" placeholder="e.g. +44 712 345 678" />
                 <EditField label="Company / Location" value={editLocation} onChangeText={setEditLocation} icon="location-on" />
 
                 <View className="flex-row gap-3 mt-4">

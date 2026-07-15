@@ -318,7 +318,7 @@ export default function ManagerDisburse() {
                 value={phone}
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
-                placeholder={method === "mpesa" ? "M-Pesa phone (e.g. 712345678)" : "Airtel phone (e.g. 732345678)"}
+                placeholder={method === "mpesa" ? "M-Pesa phone (e.g. +254 712 345 678)" : "Airtel phone (e.g. +254 732 345 678)"}
                 placeholderTextColor="#A1A1AA"
               />
             ) : null}
@@ -428,7 +428,7 @@ export default function ManagerDisburse() {
                             value={details.phone}
                             onChangeText={(val) => updateFarmerDetail(farmer.id, "phone", val)}
                             keyboardType="phone-pad"
-                            placeholder={method === "mpesa" ? "M-Pesa phone (e.g. 712345678)" : "Airtel phone"}
+                            placeholder={method === "mpesa" ? "M-Pesa phone (e.g. +254 712 345 678)" : "Airtel phone"}
                             placeholderTextColor="#A1A1AA"
                           />
                         )}
