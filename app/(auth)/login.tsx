@@ -11,9 +11,10 @@ import {
   View,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator
+  ActivityIndicator,
+  StatusBar,
 } from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import api from "../../lib/api"
 import { isBiometricSignInEnabled, saveSession, signInWithBiometrics, type Role } from "../../lib/session"
@@ -27,6 +28,7 @@ export default function LoginScreen() {
   const [role, setRole] = useState<Role>("farmer")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [remember, setRemember] = useState(false)
   const [loading, setLoading] = useState(false)
   const [biometricReady, setBiometricReady] = useState(false)
@@ -73,16 +75,26 @@ export default function LoginScreen() {
     }
   }
 
+  const insets = useSafeAreaInsets()
+
   return (
-    <SafeAreaView className="flex-1 bg-stone-500">
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1 bg-stone-500"
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: '#78716c' }}
+      behavior="padding"
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : StatusBar.currentHeight ?? 0}
+    >
+      <ScrollView
+        contentContainerStyle={{
+          flexGrow: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 16,
+          paddingTop: insets.top + 16,
+          paddingBottom: insets.bottom + 32,
+        }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView 
-          contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 16 }}
-          keyboardShouldPersistTaps="handled"
-        >
         <View 
           className={`bg-[#EAEAEA] rounded-3xl p-6 pb-8 shadow-lg relative overflow-hidden w-full ${
             isWide ? 'max-w-[420px] p-8' : 'max-w-[340px]'
@@ -160,7 +172,10 @@ export default function LoginScreen() {
             label="Password" 
             icon="lock-outline" 
             placeholder="Enter your password" 
-            secureTextEntry 
+            secureTextEntry={!showPassword}
+            showToggle
+            onToggleShow={() => setShowPassword((v) => !v)}
+            isVisible={showPassword}
             value={password}
             onChangeText={setPassword}
           />
@@ -216,16 +231,15 @@ export default function LoginScreen() {
               Don&apos;t have an account?
             </Text>
             <Pressable onPress={() => router.push({ pathname: "/(auth)/onboarding", params: { role } })}>
-              <Text className="text-gray-500 underline font-medium text-sm">
+              <Text className="text-[#2A5C43] underline font-black text-sm">
                 Create your {role} profile
               </Text>
             </Pressable>
           </View>
 
         </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   )
 }
 
@@ -236,7 +250,10 @@ function Field({
   secureTextEntry,
   keyboardType,
   value,
-  onChangeText
+  onChangeText,
+  showToggle,
+  onToggleShow,
+  isVisible,
 }: {
   label: string
   icon: keyof typeof MaterialIcons.glyphMap
@@ -245,6 +262,9 @@ function Field({
   keyboardType?: "default" | "email-address"
   value: string
   onChangeText: (text: string) => void
+  showToggle?: boolean
+  onToggleShow?: () => void
+  isVisible?: boolean
 }) {
   return (
     <View className="mb-4">
@@ -264,6 +284,15 @@ function Field({
           value={value}
           onChangeText={onChangeText}
         />
+        {showToggle ? (
+          <Pressable onPress={onToggleShow} hitSlop={8}>
+            <MaterialIcons
+              name={isVisible ? "visibility" : "visibility-off"}
+              size={20}
+              color="#71717A"
+            />
+          </Pressable>
+        ) : null}
       </View>
     </View>
   )

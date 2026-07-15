@@ -34,6 +34,7 @@ type OrderItem = {
 
 export default function FarmerDashboard() {
   const [name, setName] = useState("Farmer")
+  const [uniqueId, setUniqueId] = useState("")
   const [yields, setYields] = useState<YieldItem[]>([])
   const [payments, setPayments] = useState<PaymentItem[]>([])
   const [orders, setOrders] = useState<OrderItem[]>([])
@@ -49,6 +50,7 @@ export default function FarmerDashboard() {
     setPayments(paymentRes.data)
     setOrders(orderRes.data)
     if (user?.name) setName(user.name)
+    if (user?.unique_id) setUniqueId(user.unique_id)
   }, [])
 
   useFocusEffect(
@@ -97,6 +99,9 @@ export default function FarmerDashboard() {
     <SafeAreaView className="flex-1 bg-[#FCF9F8]">
       <ScrollView className="flex-1 p-5" contentContainerStyle={{ paddingBottom: 30 }}>
         <Text className="text-3xl font-black text-[#2A5C43]">Good morning, {name}</Text>
+        {uniqueId ? (
+          <Text className="text-gray-500 font-bold mt-1">Farmer Code: {uniqueId}</Text>
+        ) : null}
         <Text className="text-gray-500 mt-1 mb-5">
           Your farm activity, payouts and market demand from live records.
         </Text>

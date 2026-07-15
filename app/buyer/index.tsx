@@ -8,6 +8,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import api from "../../lib/api"
 import { notifyNewListing } from "../../lib/notifications"
+import { getSessionUser } from "../../lib/session"
 
 type Listing = {
   id: string
@@ -30,6 +31,8 @@ export default function BuyerDashboard() {
   const [grade, setGrade] = useState("All Grades")
   const [quantity, setQuantity] = useState("50")
   const [creatingId, setCreatingId] = useState<string | null>(null)
+  const [buyerName, setBuyerName] = useState("Buyer")
+  const [uniqueId, setUniqueId] = useState("")
 
   const approvedListings = useMemo(
     () =>
@@ -46,8 +49,11 @@ export default function BuyerDashboard() {
   )
 
   const refresh = useCallback(async () => {
-    const { data } = await api.get("/yields")
-    const nextListings = data as Listing[]
+    const [yieldsRes, user] = await Promise.all([
+      api.get("/yields"),
+      getSessionUser()
+    ])
+    const nextListings = yieldsRes.data as Listing[]
     const visible = nextListings.filter((item) => ["Approved", "Scheduled", "Exported"].includes(item.status))
     const previousRaw = await AsyncStorage.getItem(listingCountKey)
     const previousCount = previousRaw ? Number(previousRaw) : visible.length
@@ -58,6 +64,8 @@ export default function BuyerDashboard() {
 
     await AsyncStorage.setItem(listingCountKey, String(visible.length))
     setListings(nextListings)
+    if (user?.name) setBuyerName(user.name)
+    if (user?.unique_id) setUniqueId(user.unique_id)
   }, [])
 
   useFocusEffect(
@@ -100,7 +108,10 @@ export default function BuyerDashboard() {
     <SafeAreaView className="flex-1 bg-[#FCF9F8]">
       <ScrollView className="flex-1 p-5" contentContainerStyle={{ paddingBottom: 30 }}>
         <Text className="text-3xl font-black text-[#2A5C43]">Available Avocado Listings</Text>
-        <Text className="text-gray-500 mt-1 mb-5">Premium Hass and Fuerte avocados ready for export.</Text>
+        <Text className="text-gray-500 mt-1 mb-2">Premium Hass and Fuerte avocados ready for export.</Text>
+        {uniqueId ? (
+          <Text className="text-[#2A5C43] font-bold mb-4">Buyer Code: {uniqueId}</Text>
+        ) : null}
 
         <View className="bg-white rounded-2xl p-4 border border-gray-200 mb-5">
           <Filter label="Region" value={region} onPress={() => setRegion(region === "All Regions" ? "Nyeri, Central Kenya" : "All Regions")} />

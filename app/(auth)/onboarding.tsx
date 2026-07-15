@@ -1,8 +1,8 @@
 import { MaterialIcons } from "@expo/vector-icons"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useState } from "react"
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, Text, TextInput, View } from "react-native"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import api from "../../lib/api"
 import { saveSession, type Role } from "../../lib/session"
@@ -32,6 +32,7 @@ export default function OnboardingScreen() {
   const [showCodes, setShowCodes] = useState(false)
   const [location, setLocation] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
 
   async function handleRegister() {
@@ -66,10 +67,19 @@ export default function OnboardingScreen() {
     }
   }
 
+  const insets = useSafeAreaInsets()
+
   return (
-    <SafeAreaView className="flex-1 bg-[#f4f4f4]">
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} className="flex-1">
-        <ScrollView contentContainerStyle={{ padding: 20 }}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: '#f4f4f4' }}
+      behavior="padding"
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : StatusBar.currentHeight ?? 0}
+    >
+      <ScrollView
+        contentContainerStyle={{ padding: 20, paddingTop: insets.top + 16, paddingBottom: insets.bottom + 40 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
           <View className="bg-white rounded-2xl p-6 border border-gray-200">
             <Text className="text-3xl font-black text-[#2A5C43] mb-2">Create account</Text>
 
@@ -140,7 +150,16 @@ export default function OnboardingScreen() {
               onChangeText={setLocation}
               icon="location-on"
             />
-            <Field label="Password" value={password} onChangeText={setPassword} icon="lock-outline" secureTextEntry />
+            <Field
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              icon="lock-outline"
+              secureTextEntry={!showPassword}
+              showToggle
+              onToggleShow={() => setShowPassword((v) => !v)}
+              isVisible={showPassword}
+            />
 
             <Pressable
               className={`mt-4 rounded-xl py-4 items-center flex-row justify-center gap-2 ${loading ? "bg-[#53866f]" : "bg-[#2A5C43]"}`}
@@ -150,10 +169,16 @@ export default function OnboardingScreen() {
               <MaterialIcons name="check-circle-outline" color="#fff" size={18} />
               <Text className="text-white font-bold">{loading ? "Creating..." : "Create Account"}</Text>
             </Pressable>
+
+            <View className="flex-row justify-center items-center mt-5 gap-1">
+              <Text className="text-gray-500 text-sm font-medium">Already have an account?</Text>
+              <Pressable onPress={() => router.push("/(auth)/login")}>
+                <Text className="text-[#2A5C43] text-sm font-black underline">Login</Text>
+              </Pressable>
+            </View>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   )
 }
 
@@ -163,7 +188,10 @@ function Field({
   onChangeText,
   icon,
   secureTextEntry,
-  keyboardType
+  keyboardType,
+  showToggle,
+  onToggleShow,
+  isVisible,
 }: {
   label: string
   value: string
@@ -171,6 +199,9 @@ function Field({
   icon: keyof typeof MaterialIcons.glyphMap
   secureTextEntry?: boolean
   keyboardType?: "default" | "email-address" | "phone-pad"
+  showToggle?: boolean
+  onToggleShow?: () => void
+  isVisible?: boolean
 }) {
   return (
     <View className="mb-3">
@@ -186,6 +217,15 @@ function Field({
           autoCapitalize={keyboardType === "email-address" ? "none" : "words"}
           style={{ outlineStyle: "none" } as never}
         />
+        {showToggle ? (
+          <Pressable onPress={onToggleShow} hitSlop={8}>
+            <MaterialIcons
+              name={isVisible ? "visibility" : "visibility-off"}
+              size={20}
+              color="#6b7280"
+            />
+          </Pressable>
+        ) : null}
       </View>
     </View>
   )

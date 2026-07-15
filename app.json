@@ -2,6 +2,7 @@
   "expo": {
     "name": "CEMS",
     "slug": "cems",
+    "scheme": "cems",
     "version": "1.0.0",
     "userInterfaceStyle": "automatic",
     "platforms": [
