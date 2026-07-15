@@ -1,10 +1,12 @@
 import { MaterialIcons } from "@expo/vector-icons"
 import { useFocusEffect } from "expo-router"
 import { useCallback, useMemo, useState } from "react"
-import { Alert, Pressable, ScrollView, Text, TextInput, View, ActivityIndicator } from "react-native"
+import { Pressable, ScrollView, Text, TextInput, View, ActivityIndicator } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import api from "../../lib/api"
+import { usePollingRefresh } from "../../lib/polling"
+import { Toast } from "../../components/Toast"
 
 type FarmerSummary = {
   id: string
@@ -52,12 +54,19 @@ const STATUS_CONFIG = {
   },
 }
 
+type ToastMsg = { text: string; type: "success" | "error" | "info" } | null
+
 export default function ManagerFarmers() {
   const [farmers, setFarmers] = useState<FarmerSummary[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [query, setQuery] = useState("")
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [toast, setToast] = useState<ToastMsg>(null)
+
+  function showToast(text: string, type: "success" | "error" | "info" = "success") {
+    setToast({ text, type })
+  }
 
   const refresh = useCallback(async () => {
     const [farmersRes, usersRes] = await Promise.all([api.get("/farmers"), api.get("/auth/users")])
@@ -65,13 +74,7 @@ export default function ManagerFarmers() {
     setUsers(usersRes.data)
   }, [])
 
-  useFocusEffect(
-    useCallback(() => {
-      refresh()
-      const timer = setInterval(refresh, 8000)
-      return () => clearInterval(timer)
-    }, [refresh])
-  )
+  usePollingRefresh(refresh)
 
   const rows = useMemo(() => {
     const userMap = new Map(users.filter((u) => u.role === "farmer").map((u) => [u.id, u]))
@@ -137,8 +140,13 @@ export default function ManagerFarmers() {
               setUsers((prev) =>
                 prev.map((u) => (u.id === farmer.id ? { ...u, status } : u))
               )
+              const label =
+                status === "Active" ? `${farmer.name} verified` :
+                status === "Suspended" ? `${farmer.name} suspended` :
+                `${farmer.name} sent for review`
+              showToast(label, status === "Suspended" ? "error" : "success")
             } catch (err: any) {
-              Alert.alert("Failed", err?.response?.data?.error || err.message)
+              showToast(err?.response?.data?.error || err.message || "Update failed", "error")
             } finally {
               setUpdatingId(null)
             }
@@ -150,6 +158,7 @@ export default function ManagerFarmers() {
 
   return (
     <SafeAreaView className="flex-1 bg-[#FCF9F8]">
+      <Toast message={toast} onDone={() => setToast(null)} />
       <ScrollView className="flex-1 p-5" contentContainerStyle={{ paddingBottom: 30 }}>
         <Text className="text-3xl font-black text-[#2A5C43]">Farmer Registry</Text>
         <Text className="text-gray-500 mt-1 mb-5">

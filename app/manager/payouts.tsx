@@ -1,14 +1,16 @@
 import { MaterialIcons } from "@expo/vector-icons"
 import { useFocusEffect } from "expo-router"
 import { useCallback, useMemo, useState } from "react"
-import { Pressable, ScrollView, Text, View } from "react-native"
+import { Pressable, ScrollView, Text, View, ActivityIndicator } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import api from "../../lib/api"
+import { usePollingRefresh } from "../../lib/polling"
+import { Toast, shortHash } from "../../components/Toast"
 
 type PaymentItem = {
-  id: number
-  order_id: number
+  id: string
+  order_id: string
   buyer: string
   quantity: string
   amount: string
@@ -16,12 +18,24 @@ type PaymentItem = {
   created_at: string
 }
 
+type ToastMsg = { text: string; type: "success" | "error" | "info" } | null
+
 export default function ManagerPayouts() {
   const [payments, setPayments] = useState<PaymentItem[]>([])
+  const [toast, setToast] = useState<ToastMsg>(null)
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
+
+  function showToast(text: string, type: "success" | "error" | "info" = "success") {
+    setToast({ text, type })
+  }
 
   const refresh = useCallback(async () => {
-    const { data } = await api.get("/payments")
-    setPayments(data)
+    try {
+      const { data } = await api.get("/payments")
+      setPayments(data)
+    } catch (error: any) {
+      showToast(error?.response?.data?.error || error.message || "Failed to load payments", "error")
+    }
   }, [])
 
   useFocusEffect(
@@ -44,13 +58,27 @@ export default function ManagerPayouts() {
     }
   }, [payments])
 
-  async function updatePayment(id: number, status: string) {
-    await api.patch(`/payments/${id}/status`, { status })
-    refresh()
+  async function updatePayment(id: string, status: string) {
+    setUpdatingId(id)
+    try {
+      await api.patch(`/payments/${id}/status`, { status })
+      await refresh()
+      const label =
+        status === "Verified" ? "Payment verified" :
+        status === "Held" ? "Payment held" :
+        status === "Rejected" ? "Payment rejected" :
+        `Payment ${status.toLowerCase()}`
+      showToast(label, status === "Rejected" || status === "Held" ? "info" : "success")
+    } catch (error: any) {
+      showToast(error?.response?.data?.error || error.message || "Unable to update payment", "error")
+    } finally {
+      setUpdatingId(null)
+    }
   }
 
   return (
     <SafeAreaView className="flex-1 bg-[#FCF9F8]">
+      <Toast message={toast} onDone={() => setToast(null)} />
       <ScrollView className="flex-1 p-5" contentContainerStyle={{ paddingBottom: 30 }}>
         <Text className="text-3xl font-black text-[#2A5C43]">Payments Dashboard</Text>
         <Text className="text-gray-500 mt-1 mb-5">Confirm buyer payments and release settlement flow.</Text>
@@ -69,25 +97,41 @@ export default function ManagerPayouts() {
         </View>
 
         <Text className="text-xl font-black text-[#2A5C43] mb-2">Recent Transactions</Text>
-        {payments.map((row) => (
-          <View key={row.id} className="bg-white rounded-2xl p-4 border border-gray-200 mb-3">
-            <View className="flex-row items-start justify-between gap-3">
-              <View className="flex-1">
-                <Text className="text-lg font-black text-[#2A5C43]">Payment #{row.id}</Text>
-                <Text className="text-gray-700 mt-1">Order #{row.order_id} - {row.buyer || "Buyer"}</Text>
-                <Text className="text-gray-700">Qty: {Number(row.quantity || 0).toLocaleString()} kg</Text>
-              </View>
-              <StatusPill status={row.status} />
-            </View>
-            <Text className="text-gray-900 font-black mt-3">KES {Number(row.amount || 0).toLocaleString()}</Text>
-            <Text className="text-gray-500 mt-1">{new Date(row.created_at).toLocaleString()}</Text>
-            <View className="flex-row gap-2 mt-4">
-              <Action label="Verify" onPress={() => updatePayment(row.id, "Verified")} />
-              <Action label="Hold" tone="neutral" onPress={() => updatePayment(row.id, "Held")} />
-              <Action label="Reject" tone="danger" onPress={() => updatePayment(row.id, "Rejected")} />
-            </View>
+        {payments.length === 0 ? (
+          <View className="bg-white rounded-2xl p-4 border border-gray-200">
+            <Text className="font-black text-[#2A5C43]">No payments yet</Text>
+            <Text className="text-gray-500 mt-1">Buyer payments will appear here once submitted.</Text>
           </View>
-        ))}
+        ) : (
+          payments.map((row) => (
+            <View key={row.id} className="bg-white rounded-2xl p-4 border border-gray-200 mb-3">
+              <View className="flex-row items-start justify-between gap-3">
+                <View className="flex-1">
+                  <Text className="text-lg font-black text-[#2A5C43]">Payment #{shortHash(row.id)}</Text>
+                  <Text className="text-gray-700 mt-1">
+                    Order #{row.order_id ? shortHash(row.order_id) : "—"} · {row.buyer || "Buyer"}
+                  </Text>
+                  <Text className="text-gray-700">Qty: {Number(row.quantity || 0).toLocaleString()} kg</Text>
+                </View>
+                <StatusPill status={row.status} />
+              </View>
+              <Text className="text-gray-900 font-black mt-3">KES {Number(row.amount || 0).toLocaleString()}</Text>
+              <Text className="text-gray-500 mt-1">{new Date(row.created_at).toLocaleString()}</Text>
+              {updatingId === row.id ? (
+                <View className="flex-row gap-2 mt-4 items-center justify-center py-2">
+                  <ActivityIndicator size="small" color="#2A5C43" />
+                  <Text className="text-gray-500 font-bold text-sm">Updating…</Text>
+                </View>
+              ) : (
+                <View className="flex-row gap-2 mt-4">
+                  <Action label="Verify" onPress={() => updatePayment(row.id, "Verified")} />
+                  <Action label="Hold" tone="neutral" onPress={() => updatePayment(row.id, "Held")} />
+                  <Action label="Reject" tone="danger" onPress={() => updatePayment(row.id, "Rejected")} />
+                </View>
+              )}
+            </View>
+          ))
+        )}
       </ScrollView>
     </SafeAreaView>
   )

@@ -231,7 +231,7 @@ export default function LandingPage() {
             </Pressable>
             <Pressable
               style={[styles.ghostButton, !isTablet && styles.fullButton]}
-              onPress={() => router.push("/buyer")}
+              onPress={() => router.push("/market-rates")}
             >
               <Text style={styles.ghostButtonText}>View Market Rates</Text>
             </Pressable>

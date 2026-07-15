@@ -11,6 +11,9 @@
       "web"
     ],
     "orientation": "portrait",
+    "android": {
+      "usesCleartextTraffic": true
+    },
     "plugins": [
       [
         "expo-local-authentication",

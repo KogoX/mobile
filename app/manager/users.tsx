@@ -5,6 +5,7 @@ import { Pressable, ScrollView, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import api from "../../lib/api"
+import { usePollingRefresh } from "../../lib/polling"
 import type { Role } from "../../lib/session"
 
 type User = {

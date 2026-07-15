@@ -6,6 +6,7 @@ import * as WebBrowser from "expo-web-browser"
 
 import api from "../../lib/api"
 import { getSessionUser } from "../../lib/session"
+import { shortHash } from "../../components/Toast"
 
 type Order = {
   id: number
@@ -44,7 +45,7 @@ export default function BuyerOrders() {
     }, [refresh])
   )
 
-  async function startPayment(order: Order, method: "card" | "mpesa") {
+  async function startPayment(order: Order, method: "card" | "mpesa" | "bank") {
     try {
       setPayingOrderId(order.id)
       const { data } = await api.post("/payments/initialize", {
@@ -53,7 +54,7 @@ export default function BuyerOrders() {
         phone: buyerPhone
       })
 
-      if (method === "card" && data.authorization_url) {
+      if ((method === "card" || method === "bank") && data.authorization_url) {
         await WebBrowser.openBrowserAsync(data.authorization_url)
         await api.post("/payments/verify", { reference: data.reference })
       } else {
@@ -93,12 +94,12 @@ export default function BuyerOrders() {
 
           return (
             <View key={order.id} className="bg-white rounded-2xl p-4 border border-gray-200 mb-3">
-              <Text className="text-lg font-black text-[#2A5C43]">Order #{order.id}</Text>
+              <Text className="text-lg font-black text-[#2A5C43]">Order #{shortHash(order.id)}</Text>
               <Text className="text-gray-700 mt-1">{order.produce}</Text>
               <Text className="text-gray-700">Qty: {Number(order.quantity).toLocaleString()} kg</Text>
               <Text className="text-gray-700">Unit Price: KES {Number(order.unit_price).toLocaleString()}</Text>
               <Text className="text-gray-700">
-                Fulfillment: {order.farmer ? `${order.farmer} harvest #${order.yield_id}` : "Awaiting manager match"}
+                Fulfillment: {order.farmer ? `${order.farmer} harvest #${order.yield_id ? shortHash(order.yield_id) : "—"}` : "Awaiting manager match"}
               </Text>
               <Text className="text-gray-900 font-bold mt-1">
                 Total: KES {Number(order.total_amount).toLocaleString()}
@@ -127,9 +128,9 @@ export default function BuyerOrders() {
       <Modal visible={Boolean(methodOrder)} transparent animationType="slide">
         <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setMethodOrder(null)}>
           <View className="bg-white rounded-t-3xl p-6" onStartShouldSetResponder={() => true}>
-            <Text className="text-2xl font-black text-[#2A5C43]">Choose payment method</Text>
+            <Text className="text-[#2A5C43] text-2xl font-black">Choose payment method</Text>
             <Text className="text-gray-500 mt-1 mb-5">
-              Order #{methodOrder?.id} • KES {Number(methodOrder?.total_amount || 0).toLocaleString()}
+              Order #{methodOrder ? shortHash(methodOrder.id) : ""} • KES {Number(methodOrder?.total_amount || 0).toLocaleString()}
             </Text>
 
             <Pressable
@@ -137,6 +138,13 @@ export default function BuyerOrders() {
               onPress={() => methodOrder && startPayment(methodOrder, "card")}
             >
               <Text className="text-white font-black">Pay with Card</Text>
+            </Pressable>
+
+            <Pressable
+              className="bg-[#1e4d35] rounded-xl py-4 items-center mb-3"
+              onPress={() => methodOrder && startPayment(methodOrder, "bank")}
+            >
+              <Text className="text-white font-black">Pay with Bank Transfer</Text>
             </Pressable>
 
             <Pressable

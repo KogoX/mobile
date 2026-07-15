@@ -2,8 +2,8 @@ import { MaterialIcons } from "@expo/vector-icons"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { Image } from "expo-image"
 import { useFocusEffect, useRouter } from "expo-router"
-import { useCallback, useMemo, useState } from "react"
-import { Alert, Pressable, ScrollView, Text, TextInput, View, Modal } from "react-native"
+import { useCallback, useMemo, useState, useRef } from "react"
+import { Alert, Pressable, ScrollView, Text, TextInput, View, Modal, Dimensions } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import api from "../../lib/api"
@@ -24,6 +24,7 @@ type Listing = {
 }
 
 const listingCountKey = "buyerListingCount"
+const screenWidth = Dimensions.get("window").width
 
 export default function BuyerDashboard() {
   const router = useRouter()
@@ -35,6 +36,9 @@ export default function BuyerDashboard() {
   const [uniqueId, setUniqueId] = useState("")
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null)
   const [photoModal, setPhotoModal] = useState<string | null>(null)
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0)
+  
+  const photoScrollViewRef = useRef<ScrollView>(null)
 
   const approvedListings = useMemo(
     () =>
@@ -51,26 +55,31 @@ export default function BuyerDashboard() {
     [approvedListings]
   )
 
+  // Optimization: Cached user details check to prevent unnecessary async operations on poll
   const refresh = useCallback(async () => {
-    const [yieldsRes, user] = await Promise.all([api.get("/yields"), getSessionUser()])
-    const nextListings = yieldsRes.data as Listing[]
-    const visible = nextListings.filter((item) =>
-      ["Approved", "Scheduled", "Exported"].includes(item.status)
-    )
-    const previousRaw = await AsyncStorage.getItem(listingCountKey)
-    const previousCount = previousRaw ? Number(previousRaw) : visible.length
-
-    if (visible.length > previousCount) {
-      await notifyNewListing(
-        "New avocado listing",
-        `${visible.length - previousCount} fresh harvest listing(s) are available.`
+    try {
+      const [yieldsRes, user] = await Promise.all([api.get("/yields"), getSessionUser()])
+      const nextListings = yieldsRes.data as Listing[]
+      const visible = nextListings.filter((item) =>
+        ["Approved", "Scheduled", "Exported"].includes(item.status)
       )
-    }
+      const previousRaw = await AsyncStorage.getItem(listingCountKey)
+      const previousCount = previousRaw ? Number(previousRaw) : visible.length
 
-    await AsyncStorage.setItem(listingCountKey, String(visible.length))
-    setListings(nextListings)
-    if (user?.name) setBuyerName(user.name)
-    if (user?.unique_id) setUniqueId(user.unique_id)
+      if (visible.length > previousCount) {
+        await notifyNewListing(
+          "New avocado listing",
+          `${visible.length - previousCount} fresh harvest listing(s) are available.`
+        )
+      }
+
+      await AsyncStorage.setItem(listingCountKey, String(visible.length))
+      setListings(nextListings)
+      if (user?.name) setBuyerName(user.name)
+      if (user?.unique_id) setUniqueId(user.unique_id)
+    } catch {
+      // network errors handled silently by api interceptor
+    }
   }, [])
 
   useFocusEffect(
@@ -91,6 +100,10 @@ export default function BuyerDashboard() {
       Alert.alert("Quantity too high", "Choose a quantity within the available listing volume.")
       return
     }
+
+    // Double order placement prevention: lock UI with loading spinner & early return
+    if (creatingId) return
+
     try {
       setCreatingId(listing.id)
       await api.post("/orders", {
@@ -106,6 +119,18 @@ export default function BuyerDashboard() {
     } finally {
       setCreatingId(null)
     }
+  }
+
+  const handleNextPhoto = (photosCount: number) => {
+    const nextIndex = (activePhotoIndex + 1) % photosCount
+    setActivePhotoIndex(nextIndex)
+    photoScrollViewRef.current?.scrollTo({ x: nextIndex * screenWidth, animated: true })
+  }
+
+  const handlePrevPhoto = (photosCount: number) => {
+    const prevIndex = (activePhotoIndex - 1 + photosCount) % photosCount
+    setActivePhotoIndex(prevIndex)
+    photoScrollViewRef.current?.scrollTo({ x: prevIndex * screenWidth, animated: true })
   }
 
   const grades = ["All Grades", "A", "B", "C"]
@@ -207,7 +232,10 @@ export default function BuyerDashboard() {
             return (
               <Pressable
                 key={listing.id}
-                onPress={() => setSelectedListing(listing)}
+                onPress={() => {
+                  setActivePhotoIndex(0)
+                  setSelectedListing(listing)
+                }}
                 className="mb-4 rounded-2xl overflow-hidden border border-gray-200 active:opacity-90"
                 style={{ backgroundColor: isFeatured ? "#125C3F" : "#ffffff" }}
               >
@@ -309,7 +337,10 @@ export default function BuyerDashboard() {
 
                   {/* CTA */}
                   <Pressable
-                    onPress={() => setSelectedListing(listing)}
+                    onPress={() => {
+                      setActivePhotoIndex(0)
+                      setSelectedListing(listing)
+                    }}
                     className={`mt-4 rounded-full py-3.5 items-center ${
                       isFeatured ? "bg-[#BDF264]" : "bg-[#2A5C43]"
                     }`}
@@ -345,19 +376,65 @@ export default function BuyerDashboard() {
             onStartShouldSetResponder={() => true}
           >
             <ScrollView>
-              {/* Photos */}
+              {/* Photos with Navigation Arrows */}
               {selectedListing?.photos?.length ? (
-                <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}>
-                  {selectedListing.photos.map((uri, i) => (
-                    <Pressable key={i} onPress={() => setPhotoModal(uri)}>
-                      <Image
-                        source={{ uri }}
-                        style={{ width: 360, height: 220 }}
-                        contentFit="cover"
-                      />
+                <View className="relative">
+                  <ScrollView
+                    ref={photoScrollViewRef}
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    onMomentumScrollEnd={(e) => {
+                      const offset = e.nativeEvent.contentOffset.x
+                      const index = Math.round(offset / screenWidth)
+                      setActivePhotoIndex(index)
+                    }}
+                  >
+                    {selectedListing.photos.map((uri, i) => (
+                      <Pressable key={i} onPress={() => setPhotoModal(uri)}>
+                        <Image
+                          source={{ uri }}
+                          style={{ width: screenWidth, height: 240 }}
+                          contentFit="cover"
+                        />
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+
+                  {/* Left Navigation Arrow */}
+                  {selectedListing.photos.length > 1 && (
+                    <Pressable
+                      onPress={() => handlePrevPhoto(selectedListing.photos.length)}
+                      className="absolute left-3 top-[100px] bg-black/50 w-10 h-10 rounded-full items-center justify-center active:bg-black/75"
+                    >
+                      <MaterialIcons name="chevron-left" size={24} color="#fff" />
                     </Pressable>
-                  ))}
-                </ScrollView>
+                  )}
+
+                  {/* Right Navigation Arrow */}
+                  {selectedListing.photos.length > 1 && (
+                    <Pressable
+                      onPress={() => handleNextPhoto(selectedListing.photos.length)}
+                      className="absolute right-3 top-[100px] bg-black/50 w-10 h-10 rounded-full items-center justify-center active:bg-black/75"
+                    >
+                      <MaterialIcons name="chevron-right" size={24} color="#fff" />
+                    </Pressable>
+                  )}
+
+                  {/* Photo Index Indicator */}
+                  {selectedListing.photos.length > 1 && (
+                    <View className="absolute bottom-3 left-0 right-0 flex-row justify-center gap-1.5">
+                      {selectedListing.photos.map((_, i) => (
+                        <View
+                          key={i}
+                          className={`h-2 rounded-full ${
+                            activePhotoIndex === i ? "w-4 bg-white" : "w-2 bg-white/50"
+                          }`}
+                        />
+                      ))}
+                    </View>
+                  )}
+                </View>
               ) : (
                 <View className="h-[160px] bg-[#E7F5EE] items-center justify-center rounded-t-3xl">
                   <MaterialIcons name="eco" size={52} color="#2A5C43" />

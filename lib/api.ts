@@ -28,22 +28,48 @@ const api = axios.create({
   timeout: 15000
 })
 
+let cachedToken: string | null | undefined
+
+export function setAuthToken(token: string | null) {
+  cachedToken = token
+}
+
+export function clearAuthToken() {
+  cachedToken = null
+}
+
 api.interceptors.request.use(async (config) => {
-  const token = await AsyncStorage.getItem("token")
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
+  if (cachedToken === undefined) {
+    cachedToken = await AsyncStorage.getItem("token")
+  }
+  if (cachedToken) {
+    config.headers.Authorization = `Bearer ${cachedToken}`
   }
   return config
 })
 
+const SUPPRESS_MS = 30_000
+let _lastNetworkErrorLog = 0
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (!error.response && error.message === "Network Error") {
-      console.warn(
-        `[api] Network Error - cannot reach ${api.defaults.baseURL}. ` +
-          `Is the backend running? If on an emulator/device, set EXPO_PUBLIC_API_URL to your machine's LAN IP (e.g. http://192.168.x.x:5000).`
-      )
+    const isNetworkError =
+      !error.response &&
+      (error.message === "Network Error" || error.code === "ECONNABORTED")
+
+    if (isNetworkError) {
+      const now = Date.now()
+      if (now - _lastNetworkErrorLog >= SUPPRESS_MS) {
+        _lastNetworkErrorLog = now
+        console.warn(
+          `[api] Network Error — cannot reach ${api.defaults.baseURL}.\n` +
+          `  • Is the backend running?\n` +
+          `  • On a device/emulator, update EXPO_PUBLIC_API_URL in mobile/.env to your machine's LAN IP.\n` +
+          `  • Current value: ${normalizedBase}\n` +
+          `  (Further network errors will be suppressed for 30 s)`
+        )
+      }
     }
     return Promise.reject(error)
   }

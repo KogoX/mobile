@@ -2,6 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage"
 import * as LocalAuthentication from "expo-local-authentication"
 import * as SecureStore from "expo-secure-store"
 
+import { clearAuthToken, setAuthToken } from "./api"
+
 export type Role = "farmer" | "manager" | "buyer"
 
 export type SessionUser = {
@@ -14,6 +16,7 @@ export type SessionUser = {
 }
 
 export async function saveSession(token: string, user: SessionUser) {
+  setAuthToken(token)
   await AsyncStorage.multiSet([
     ["token", token],
     ["user", JSON.stringify(user)]
@@ -87,5 +90,6 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 }
 
 export async function clearSession() {
+  clearAuthToken()
   await AsyncStorage.multiRemove(["token", "user"])
 }

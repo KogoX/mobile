@@ -1,10 +1,11 @@
 import { MaterialIcons } from "@expo/vector-icons"
 import { useFocusEffect } from "expo-router"
 import { useCallback, useMemo, useState } from "react"
-import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native"
+import { Modal, Pressable, ScrollView, Text, TextInput, View, ActivityIndicator } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import api from "../../lib/api"
+import { Toast, shortHash } from "../../components/Toast"
 
 type Farmer = {
   id: string
@@ -23,8 +24,10 @@ type Payout = {
   created_at: string
 }
 
-const METHODS = ["mpesa", "bank", "cash"] as const
+const METHODS = ["mpesa", "bank", "cash", "airtel"] as const
 type Method = (typeof METHODS)[number]
+
+type ToastMsg = { text: string; type: "success" | "error" | "info" } | null
 
 export default function ManagerDisburse() {
   const [farmers, setFarmers] = useState<Farmer[]>([])
@@ -38,6 +41,12 @@ export default function ManagerDisburse() {
   const [accountNumber, setAccountNumber] = useState("")
   const [notes, setNotes] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const [toast, setToast] = useState<ToastMsg>(null)
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
+
+  function showToast(text: string, type: "success" | "error" | "info" = "success") {
+    setToast({ text, type })
+  }
 
   // Batch Mode states
   const [payoutMode, setPayoutMode] = useState<"single" | "batch">("single")
@@ -117,15 +126,15 @@ export default function ManagerDisburse() {
 
   async function submitPayout() {
     if (!selectedFarmer || !amount) {
-      Alert.alert("Missing details", "Select a farmer and enter an amount.")
+      showToast("Select a farmer and enter an amount.", "error")
       return
     }
-    if (method === "mpesa" && !phone) {
-      Alert.alert("Missing phone", "Enter the farmer's M-Pesa phone number.")
+    if ((method === "mpesa" || method === "airtel") && !phone) {
+      showToast(`Enter the farmer's ${method === "mpesa" ? "M-Pesa" : "Airtel"} phone number.`, "error")
       return
     }
     if (method === "bank" && (!bankCode || !accountNumber)) {
-      Alert.alert("Missing bank details", "Enter the bank code and account number.")
+      showToast("Enter the bank code and account number.", "error")
       return
     }
 
@@ -135,19 +144,19 @@ export default function ManagerDisburse() {
         farmer_id: selectedFarmer.id,
         amount: Number(amount),
         method,
-        phone: method === "mpesa" ? `+${phone.replace(/[^0-9]/g, "")}` : undefined,
+        phone: (method === "mpesa" || method === "airtel") ? `+${phone.replace(/[^0-9]/g, "")}` : undefined,
         bank_code: method === "bank" ? bankCode : undefined,
         account_number: method === "bank" ? accountNumber : undefined,
         notes: notes || undefined
       })
-      Alert.alert("Payout initiated", "The payout has been recorded.")
+      showToast("Payout initiated successfully")
       setAmount("")
       setNotes("")
       setAccountNumber("")
       setBankCode("")
       refresh()
     } catch (error: any) {
-      Alert.alert("Payout failed", error?.response?.data?.error || error.message)
+      showToast(error?.response?.data?.error || error.message || "Payout failed", "error")
     } finally {
       setSubmitting(false)
     }
@@ -155,7 +164,7 @@ export default function ManagerDisburse() {
 
   async function submitBatchPayout() {
     if (batchSelectedFarmers.length === 0) {
-      Alert.alert("No farmers selected", "Please select at least one farmer.")
+      showToast("Please select at least one farmer.", "error")
       return
     }
 
@@ -165,17 +174,17 @@ export default function ManagerDisburse() {
       const details = batchDetails[farmerId] || { amount: "", phone: "", bankCode: "", accountNumber: "" }
 
       if (!details.amount || Number(details.amount) <= 0) {
-        Alert.alert("Missing details", `Please enter a valid amount for ${farmer?.name}.`)
+        showToast(`Enter a valid amount for ${farmer?.name}.`, "error")
         return
       }
 
-      if (method === "mpesa" && !details.phone) {
-        Alert.alert("Missing phone", `Please enter M-Pesa phone for ${farmer?.name}.`)
+      if ((method === "mpesa" || method === "airtel") && !details.phone) {
+        showToast(`Enter ${method === "mpesa" ? "M-Pesa" : "Airtel"} phone for ${farmer?.name}.`, "error")
         return
       }
 
       if (method === "bank" && (!details.bankCode || !details.accountNumber)) {
-        Alert.alert("Missing bank details", `Please fill bank code and account number for ${farmer?.name}.`)
+        showToast(`Fill bank code and account for ${farmer?.name}.`, "error")
         return
       }
 
@@ -183,7 +192,7 @@ export default function ManagerDisburse() {
         farmer_id: farmerId,
         amount: Number(details.amount),
         method,
-        phone: method === "mpesa" ? `+${details.phone.replace(/[^0-9]/g, "")}` : undefined,
+        phone: (method === "mpesa" || method === "airtel") ? `+${details.phone.replace(/[^0-9]/g, "")}` : undefined,
         bank_code: method === "bank" ? details.bankCode : undefined,
         account_number: method === "bank" ? details.accountNumber : undefined
       })
@@ -195,25 +204,30 @@ export default function ManagerDisburse() {
         payouts: payloadPayouts,
         notes: notes || undefined
       })
-      Alert.alert("Batch payout initiated", `${payloadPayouts.length} payouts have been initiated successfully.`)
+      showToast(`${payloadPayouts.length} batch payouts initiated`)
       setBatchSelectedFarmers([])
       setBatchDetails({})
       setDefaultBatchAmount("")
       setNotes("")
       refresh()
     } catch (error: any) {
-      Alert.alert("Batch payout failed", error?.response?.data?.error || error.message)
+      showToast(error?.response?.data?.error || error.message || "Batch payout failed", "error")
     } finally {
       setSubmitting(false)
     }
   }
 
   async function updateStatus(id: string, status: string) {
+    setUpdatingId(id)
     try {
       await api.patch(`/payouts/${id}/status`, { status })
-      refresh()
+      await refresh()
+      const label = status === "Paid" ? "Payout marked as paid" : status === "Failed" ? "Payout marked failed" : `Status: ${status}`
+      showToast(label, status === "Failed" ? "error" : "success")
     } catch (error: any) {
-      Alert.alert("Unable to update", error?.response?.data?.error || error.message)
+      showToast(error?.response?.data?.error || error.message || "Unable to update", "error")
+    } finally {
+      setUpdatingId(null)
     }
   }
 
@@ -230,6 +244,7 @@ export default function ManagerDisburse() {
 
   return (
     <SafeAreaView className="flex-1 bg-[#FCF9F8]">
+      <Toast message={toast} onDone={() => setToast(null)} />
       <ScrollView className="flex-1 p-5" contentContainerStyle={{ paddingBottom: 30 }}>
         <Text className="text-3xl font-black text-[#2A5C43]">Farmer Payouts</Text>
         <Text className="text-gray-500 mt-1 mb-5">Disburse earnings via M-Pesa, bank transfer or cash.</Text>
@@ -297,13 +312,13 @@ export default function ManagerDisburse() {
               ))}
             </View>
 
-            {method === "mpesa" ? (
+            {method === "mpesa" || method === "airtel" ? (
               <TextInput
                 className="bg-[#F9F9F9] border border-gray-200 rounded-xl px-4 py-3.5 mb-3 text-gray-800 font-bold"
                 value={phone}
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
-                placeholder="M-Pesa phone (e.g. 712345678)"
+                placeholder={method === "mpesa" ? "M-Pesa phone (e.g. 712345678)" : "Airtel phone (e.g. 732345678)"}
                 placeholderTextColor="#A1A1AA"
               />
             ) : null}
@@ -407,13 +422,13 @@ export default function ManagerDisburse() {
                           placeholder="Amount (KES)"
                           placeholderTextColor="#A1A1AA"
                         />
-                        {method === "mpesa" && (
+                        {(method === "mpesa" || method === "airtel") && (
                           <TextInput
                             className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-gray-800 text-sm"
                             value={details.phone}
                             onChangeText={(val) => updateFarmerDetail(farmer.id, "phone", val)}
                             keyboardType="phone-pad"
-                            placeholder="M-Pesa phone (e.g. 712345678)"
+                            placeholder={method === "mpesa" ? "M-Pesa phone (e.g. 712345678)" : "Airtel phone"}
                             placeholderTextColor="#A1A1AA"
                           />
                         )}
@@ -468,6 +483,7 @@ export default function ManagerDisburse() {
             <View className="flex-row items-start justify-between gap-3">
               <View className="flex-1">
                 <Text className="text-lg font-black text-[#2A5C43]">{item.farmer || "Farmer"}</Text>
+                <Text className="text-gray-500 text-xs mt-0.5 font-mono">#{shortHash(item.id)}</Text>
                 <Text className="text-gray-700 mt-1 capitalize">{item.method} payout</Text>
               </View>
               <StatusPill status={item.status} />
@@ -477,10 +493,17 @@ export default function ManagerDisburse() {
               {new Date(item.created_at).toLocaleString()} {item.reference ? `• ${item.reference}` : ""}
             </Text>
             {item.status !== "Paid" && item.status !== "Failed" ? (
-              <View className="flex-row gap-2 mt-3">
-                <Action label="Mark Paid" onPress={() => updateStatus(item.id, "Paid")} />
-                <Action label="Fail" tone="danger" onPress={() => updateStatus(item.id, "Failed")} />
-              </View>
+              updatingId === item.id ? (
+                <View className="flex-row gap-2 mt-3 items-center justify-center py-2">
+                  <ActivityIndicator size="small" color="#2A5C43" />
+                  <Text className="text-gray-500 font-bold text-sm">Updating…</Text>
+                </View>
+              ) : (
+                <View className="flex-row gap-2 mt-3">
+                  <Action label="Mark Paid" onPress={() => updateStatus(item.id, "Paid")} />
+                  <Action label="Fail" tone="danger" onPress={() => updateStatus(item.id, "Failed")} />
+                </View>
+              )
             ) : null}
           </View>
         ))}

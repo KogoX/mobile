@@ -5,6 +5,7 @@ import { ScrollView, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import api from "../../lib/api"
+import { shortHash } from "../../components/Toast"
 
 type Order = {
   id: number
@@ -59,7 +60,7 @@ export default function BuyerInvoices() {
             <View key={order.id} className="bg-white rounded-2xl p-4 border border-gray-200 mb-3">
               <View className="flex-row items-start justify-between gap-3">
                 <View className="flex-1">
-                  <Text className="text-lg font-black text-[#2A5C43]">Invoice #{order.id}</Text>
+                  <Text className="text-lg font-black text-[#2A5C43]">Invoice #{shortHash(order.id)}</Text>
                   <Text className="text-gray-700 mt-1">{order.produce}</Text>
                 </View>
                 <View className={`rounded-full px-3 py-1 ${paid ? "bg-[#E7F5EE]" : "bg-amber-100"}`}>
