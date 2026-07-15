@@ -13,7 +13,7 @@ const nav = [
   ["shopping-cart", "Orders", "/manager/orders"],
   ["payments", "Payments", "/manager/payouts"],
   ["analytics", "Reports", "/manager"],
-  ["settings", "Settings", "/manager/settings"],
+  ["person", "Profile", "/manager/settings"],
 ] as const
 
 // --- SHARED LAYOUT COMPONENTS ---

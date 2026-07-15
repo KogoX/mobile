@@ -63,8 +63,8 @@ export default function ManagerLayout() {
       <Tabs.Screen
         name="settings"
         options={{
-          title: "Settings",
-          tabBarIcon: ({ color }) => <MaterialIcons name="settings" size={24} color={color} />,
+          title: "Profile",
+          tabBarIcon: ({ color }) => <MaterialIcons name="person" size={24} color={color} />,
         }}
       />
     </Tabs>

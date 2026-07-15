@@ -28,6 +28,7 @@ type Profile = {
 
 type YieldItem = { id: number; quantity: string; grade: string }
 type PaymentItem = { id: number; amount: string; status: string }
+type Manager = { id: string; name: string; email: string; phone?: string | null; unique_id?: string | null; verified: boolean }
 
 export default function FarmerProfile() {
   const router = useRouter()
@@ -35,6 +36,7 @@ export default function FarmerProfile() {
   const [yields, setYields] = useState<YieldItem[]>([])
   const [payments, setPayments] = useState<PaymentItem[]>([])
   const [biometricEnabled, setBiometricEnabled] = useState(false)
+  const [manager, setManager] = useState<Manager | null>(null)
 
   // Edit state
   const [editing, setEditing] = useState(false)
@@ -53,6 +55,13 @@ export default function FarmerProfile() {
     setYields(yieldRes.data)
     setPayments(paymentRes.data)
     setBiometricEnabled(await isBiometricSignInEnabled())
+    // Load verified managers
+    try {
+      const mgrsRes = await api.get("/auth/managers/verified")
+      setManager((mgrsRes.data as Manager[])[0] || null)
+    } catch {
+      setManager(null)
+    }
   }, [])
 
   useFocusEffect(useCallback(() => { refresh() }, [refresh]))
@@ -244,6 +253,46 @@ export default function FarmerProfile() {
             )}
           </View>
         ) : null}
+
+        {/* Verified Manager Card */}
+        <View className="bg-white rounded-2xl p-4 border border-gray-200 mb-4">
+          <View className="flex-row items-center gap-2 mb-3">
+            <MaterialIcons name="verified-user" size={18} color="#2A5C43" />
+            <Text className="text-[11px] text-gray-500 uppercase font-black">Your Cooperative Manager</Text>
+          </View>
+          {manager ? (
+            <>
+              <View className="flex-row items-center gap-3">
+                <View className="h-12 w-12 rounded-full bg-[#E7F5EE] items-center justify-center">
+                  <MaterialIcons name="manage-accounts" size={24} color="#2A5C43" />
+                </View>
+                <View className="flex-1">
+                  <View className="flex-row items-center gap-1">
+                    <Text className="text-gray-900 font-black text-base">{manager.name}</Text>
+                    <MaterialIcons name="verified" size={16} color="#2A5C43" />
+                  </View>
+                  <Text className="text-gray-500 text-sm">{manager.email}</Text>
+                </View>
+              </View>
+              {manager.phone ? (
+                <View className="flex-row items-center gap-2 mt-3 bg-[#F4FBF7] rounded-xl px-3 py-2">
+                  <MaterialIcons name="phone" size={15} color="#2A5C43" />
+                  <Text className="text-[#2A5C43] font-bold text-sm">{manager.phone}</Text>
+                </View>
+              ) : null}
+              {manager.unique_id ? (
+                <Text className="text-xs text-gray-400 mt-2">Manager ID: {manager.unique_id}</Text>
+              ) : null}
+            </>
+          ) : (
+            <View className="flex-row items-center gap-2 bg-amber-50 rounded-xl px-3 py-3">
+              <MaterialIcons name="info-outline" size={18} color="#d97706" />
+              <Text className="text-amber-700 text-sm font-medium flex-1">
+                No verified manager assigned yet.
+              </Text>
+            </View>
+          )}
+        </View>
 
         {/* Biometrics */}
         <Pressable
