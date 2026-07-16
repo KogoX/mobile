@@ -18,6 +18,8 @@ type Order = {
   total_amount: string
   status: string
   payment_status: string | null
+  tracking_location?: string
+  estimated_delivery?: string
   created_at: string
 }
 
@@ -27,6 +29,7 @@ export default function BuyerOrders() {
   const [methodOrder, setMethodOrder] = useState<Order | null>(null)
   const [buyerPhone, setBuyerPhone] = useState("")
   const [isLoading, setIsLoading] = useState(true)
+  const [trackingOrder, setTrackingOrder] = useState<Order | null>(null)
 
   const refresh = useCallback(async () => {
     try {
@@ -134,7 +137,7 @@ export default function BuyerOrders() {
                 {new Date(order.created_at).toLocaleString()}
               </Text>
 
-              {!isPaid && (
+              {!isPaid ? (
                 <Pressable
                   className={`mt-3 rounded-xl py-3 items-center ${processingPayment ? "bg-[#6d9a86]" : "bg-[#2A5C43]"}`}
                   onPress={() => setMethodOrder(order)}
@@ -144,11 +147,66 @@ export default function BuyerOrders() {
                     {processingPayment ? "Processing..." : "Pay now"}
                   </Text>
                 </Pressable>
+              ) : (
+                <Pressable
+                  className="mt-3 rounded-xl py-3 items-center bg-[#125C3F]"
+                  onPress={() => setTrackingOrder(order)}
+                >
+                  <Text className="text-white font-black">Track Shipment</Text>
+                </Pressable>
               )}
             </View>
           )
         })}
       </ScrollView>
+
+      {/* Tracking Modal */}
+      <Modal visible={Boolean(trackingOrder)} transparent animationType="slide">
+        <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setTrackingOrder(null)}>
+          <View className="bg-white rounded-t-3xl p-6" onStartShouldSetResponder={() => true}>
+            <View className="flex-row justify-between items-center mb-6">
+              <Text className="text-[#2A5C43] text-2xl font-black">Shipment Tracker</Text>
+              <Text className="text-gray-500 font-bold">Order #{trackingOrder ? shortHash(trackingOrder.id) : ""}</Text>
+            </View>
+
+            {trackingOrder && (
+              <View className="mb-6 pl-2">
+                {[
+                  { label: "Paid", active: true },
+                  { label: "In Transit", active: ["In Transit", "Ready for Pickup", "Fulfilled"].includes(trackingOrder.status) },
+                  { label: "Ready for Pickup", active: ["Ready for Pickup", "Fulfilled"].includes(trackingOrder.status) },
+                  { label: "Fulfilled", active: trackingOrder.status === "Fulfilled" }
+                ].map((step, index, arr) => (
+                  <View key={step.label} className="flex-row">
+                    <View className="items-center mr-4">
+                      <View className={`w-4 h-4 rounded-full ${step.active ? "bg-[#2A5C43]" : "bg-gray-300 border-2 border-white"} z-10`} />
+                      {index < arr.length - 1 && (
+                        <View className={`w-1 h-12 ${arr[index + 1].active ? "bg-[#2A5C43]" : "bg-gray-200"} -mt-1`} />
+                      )}
+                    </View>
+                    <View className="pt-0">
+                      <Text className={`font-black ${step.active ? "text-[#2A5C43]" : "text-gray-400"}`}>{step.label}</Text>
+                      {step.label === "In Transit" && step.active && trackingOrder.tracking_location ? (
+                        <Text className="text-sm text-gray-500 mt-1">📍 {trackingOrder.tracking_location}</Text>
+                      ) : null}
+                      {step.label === "In Transit" && step.active && trackingOrder.estimated_delivery ? (
+                        <Text className="text-sm text-gray-500">Est. Delivery: {new Date(trackingOrder.estimated_delivery).toLocaleDateString()}</Text>
+                      ) : null}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <Pressable
+              className="bg-gray-100 rounded-xl py-4 items-center"
+              onPress={() => setTrackingOrder(null)}
+            >
+              <Text className="text-gray-700 font-black">Close</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
 
       <Modal visible={Boolean(methodOrder)} transparent animationType="slide">
         <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setMethodOrder(null)}>

@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { useCallback, useMemo, useState, useEffect } from "react"
-import { Pressable, ScrollView, Text, View, ActivityIndicator } from "react-native"
+import { Pressable, ScrollView, Text, View, ActivityIndicator, TextInput } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import api from "../../lib/api"
@@ -59,6 +59,11 @@ export default function ManagerDashboard() {
   const [toast, setToast] = useState<ToastMsg>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [managerName, setManagerName] = useState("")
+
+  const [trackingOrder, setTrackingOrder] = useState<OrderItem | null>(null)
+  const [trackingStatus, setTrackingStatus] = useState("")
+  const [trackingLocation, setTrackingLocation] = useState("")
+  const [estimatedDelivery, setEstimatedDelivery] = useState("")
 
   useEffect(() => {
     getSessionUser().then((user) => setManagerName(user?.name || "Manager"))
@@ -143,7 +148,27 @@ export default function ManagerDashboard() {
   }
 
   const queueYields = yields.filter((item) => item.status === "Logged").slice(0, 3)
-  const queueOrders = orders.filter((item) => item.status === "Processing").slice(0, 3)
+  const queueOrders = orders.filter((item) => item.status === "Processing" || item.status === "Approved").slice(0, 3)
+  const activeShipments = orders.filter((item) => ["Paid", "In Transit", "Ready for Pickup"].includes(item.status))
+
+  async function handleUpdateTracking() {
+    if (!trackingOrder) return
+    setUpdatingId(trackingOrder.id)
+    try {
+      await api.patch(`/orders/${trackingOrder.id}/status`, {
+        status: trackingStatus || trackingOrder.status,
+        trackingLocation,
+        estimatedDelivery
+      })
+      setOrders((prev) => prev.map((o) => (o.id === trackingOrder.id ? { ...o, status: trackingStatus || o.status, tracking_location: trackingLocation, estimated_delivery: estimatedDelivery } : o)))
+      showToast("Tracking updated successfully")
+      setTrackingOrder(null)
+    } catch (error: any) {
+      showToast(error?.response?.data?.error || error.message || "Unable to update tracking", "error")
+    } finally {
+      setUpdatingId(null)
+    }
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-[#FCF9F8]">
@@ -217,13 +242,107 @@ export default function ManagerDashboard() {
             )
           })}
           {!queueYields.length && !queueOrders.length ? (
-            <View className="bg-white rounded-2xl p-4 border border-gray-200">
+            <View className="bg-white rounded-2xl p-4 border border-gray-200 mb-6">
               <Text className="font-black text-[#2A5C43]">All clear</Text>
               <Text className="text-gray-500 mt-1">New harvest submissions and buyer orders will appear here.</Text>
             </View>
-          ) : null}
+          ) : <View className="h-4" />}
+
+          {activeShipments.length > 0 && (
+            <>
+              <Text className="text-xl font-black text-[#2A5C43] mb-2">Active Shipments</Text>
+              {activeShipments.map((item) => {
+                const isUpdating = updatingId === item.id
+                return (
+                  <View key={`shipment-${item.id}`} className="bg-white rounded-2xl p-4 border border-gray-200 mb-3">
+                    <View className="flex-row justify-between mb-2">
+                      <Text className="font-black text-gray-800 text-lg">Order #{shortHash(item.id)}</Text>
+                      <View className="bg-[#E7F5EE] px-2 py-1 rounded-md">
+                        <Text className="text-[#2A5C43] text-xs font-bold">{item.status}</Text>
+                      </View>
+                    </View>
+                    <Text className="text-gray-500 mb-1">{item.buyer || "Buyer"} · {item.produce}</Text>
+                    <Text className="text-gray-500 mb-3 text-sm">Qty: {Number(item.quantity || 0).toLocaleString()} kg</Text>
+                    
+                    <Pressable
+                      className={`py-3 rounded-xl items-center ${isUpdating ? "bg-[#6d9a86]" : "bg-[#2A5C43]"}`}
+                      disabled={isUpdating}
+                      onPress={() => {
+                        setTrackingOrder(item)
+                        setTrackingStatus(item.status)
+                        setTrackingLocation(item.tracking_location || "")
+                        setEstimatedDelivery(item.estimated_delivery ? new Date(item.estimated_delivery).toISOString().split('T')[0] : "")
+                      }}
+                    >
+                      <Text className="text-white font-black">{isUpdating ? "Processing..." : "Update Tracking"}</Text>
+                    </Pressable>
+                  </View>
+                )
+              })}
+            </>
+          )}
         </View>
       </ScrollView>
+
+      {/* Tracking Update Modal */}
+      {trackingOrder && (
+        <View className="absolute inset-0 bg-black/50 justify-end z-50">
+          <View className="bg-white rounded-t-3xl p-6 pb-12">
+            <Text className="text-2xl font-black text-[#2A5C43] mb-1">Update Tracking</Text>
+            <Text className="text-gray-500 mb-6">Order #{shortHash(trackingOrder.id)}</Text>
+
+            <Text className="font-bold text-gray-700 mb-2">Status</Text>
+            <View className="flex-row flex-wrap gap-2 mb-4">
+              {["Paid", "In Transit", "Ready for Pickup", "Fulfilled"].map((opt) => (
+                <Pressable
+                  key={opt}
+                  className={`px-4 py-2 border rounded-xl ${trackingStatus === opt ? "bg-[#2A5C43] border-[#2A5C43]" : "bg-white border-gray-300"}`}
+                  onPress={() => setTrackingStatus(opt)}
+                >
+                  <Text className={`font-bold ${trackingStatus === opt ? "text-white" : "text-gray-600"}`}>{opt}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text className="font-bold text-gray-700 mb-2">Current Location</Text>
+            <View className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 mb-4">
+              <TextInput
+                value={trackingLocation}
+                onChangeText={setTrackingLocation}
+                placeholder="e.g. Nairobi Warehouse"
+                style={{ outlineStyle: 'none' } as never}
+                className="text-gray-800"
+              />
+            </View>
+
+            <Text className="font-bold text-gray-700 mb-2">Est. Delivery Date</Text>
+            <View className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 mb-6">
+              <TextInput
+                value={estimatedDelivery}
+                onChangeText={setEstimatedDelivery}
+                placeholder="YYYY-MM-DD"
+                style={{ outlineStyle: 'none' } as never}
+                className="text-gray-800"
+              />
+            </View>
+
+            <View className="flex-row gap-3">
+              <Pressable
+                className="flex-1 py-4 bg-gray-200 rounded-xl items-center"
+                onPress={() => setTrackingOrder(null)}
+              >
+                <Text className="text-gray-600 font-black">Cancel</Text>
+              </Pressable>
+              <Pressable
+                className="flex-1 py-4 bg-[#2A5C43] rounded-xl items-center"
+                onPress={handleUpdateTracking}
+              >
+                <Text className="text-white font-black">Save Updates</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   )
 }
