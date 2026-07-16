@@ -9,6 +9,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import api from "../../lib/api"
 import { notifyNewListing } from "../../lib/notifications"
 import { getSessionUser } from "../../lib/session"
+import NotificationBell from "../../components/NotificationBell"
 
 type Listing = {
   id: string
@@ -144,9 +145,12 @@ export default function BuyerDashboard() {
 
         {/* Header */}
         <View className="bg-[#125C3F] px-5 pt-6 pb-8">
-          <Text className="text-white text-sm font-bold opacity-70 mb-1">
-            Welcome, {buyerName}
-          </Text>
+          <View className="flex-row items-center justify-between mb-1">
+            <Text className="text-white text-sm font-bold opacity-70">
+              Welcome, {buyerName}
+            </Text>
+            <NotificationBell color="#ffffff" />
+          </View>
           <Text className="text-white text-3xl font-black">Avocado Market</Text>
           <Text className="text-[#D7F3E5] mt-1">Verified Kenyan harvests, ready for export</Text>
           {uniqueId ? (

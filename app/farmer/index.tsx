@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import api from "../../lib/api"
 import { getSessionUser } from "../../lib/session"
+import NotificationBell from "../../components/NotificationBell"
 
 type YieldItem = {
   id: number

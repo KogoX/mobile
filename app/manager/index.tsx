@@ -1,12 +1,14 @@
 import { MaterialIcons } from "@expo/vector-icons"
 import AsyncStorage from "@react-native-async-storage/async-storage"
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useMemo, useState, useEffect } from "react"
 import { Pressable, ScrollView, Text, View, ActivityIndicator } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import api from "../../lib/api"
 import { usePollingRefresh } from "../../lib/polling"
 import { notifyNewListing } from "../../lib/notifications"
+import { getSessionUser } from "../../lib/session"
+import NotificationBell from "../../components/NotificationBell"
 import { Toast, shortHash } from "../../components/Toast"
 
 type Farmer = {
@@ -56,6 +58,11 @@ export default function ManagerDashboard() {
   const [payments, setPayments] = useState<PaymentItem[]>([])
   const [toast, setToast] = useState<ToastMsg>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [managerName, setManagerName] = useState("")
+
+  useEffect(() => {
+    getSessionUser().then((user) => setManagerName(user?.name || "Manager"))
+  }, [])
 
   function showToast(text: string, type: "success" | "error" | "info" = "success") {
     setToast({ text, type })
@@ -141,78 +148,81 @@ export default function ManagerDashboard() {
   return (
     <SafeAreaView className="flex-1 bg-[#FCF9F8]">
       <Toast message={toast} onDone={() => setToast(null)} />
-      <ScrollView className="flex-1 p-5" contentContainerStyle={{ paddingBottom: 30 }}>
-        <View className="flex-row items-center justify-between mb-5">
-          <View>
-            <Text className="text-3xl font-black text-[#2A5C43]">Operational Overview</Text>
-            <Text className="text-gray-500 mt-1">Coordinate farmer harvests with buyer demand.</Text>
+      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 30 }}>
+        <View className="bg-[#E7F5EE] px-5 pt-6 pb-6">
+          <View className="flex-row items-center justify-between mb-1">
+            <Text className="text-[#2A5C43] text-sm font-bold opacity-70">
+              Welcome, {managerName}
+            </Text>
+            <NotificationBell color="#2A5C43" />
           </View>
-          <View className="h-11 w-11 rounded-full bg-white border border-gray-200 items-center justify-center">
-            <MaterialIcons name="notifications-none" size={24} color="#2A5C43" />
-          </View>
+          <Text className="text-[#2A5C43] text-3xl font-black mb-1">Dashboard</Text>
+          <Text className="text-[#2A5C43] opacity-80">Overview of platform activity</Text>
         </View>
 
-        <View className="flex-row flex-wrap gap-3 mb-4">
-          <Metric label="Farmers" value={farmers.length.toLocaleString()} icon="groups" />
-          <Metric label="Approved Supply" value={`${totals.approvedSupply.toLocaleString()} kg`} icon="eco" />
-          <Metric label="Open Demand" value={`${totals.openDemand.toLocaleString()} kg`} icon="shopping-cart" />
-          <Metric label="Disbursed" value={`KES ${totals.paidAmount.toLocaleString()}`} icon="payments" />
-        </View>
-
-        <View className={`rounded-2xl p-4 mb-4 ${totals.balance >= 0 ? "bg-[#125C3F]" : "bg-[#7C2D12]"}`}>
-          <Text className="text-white text-lg font-black">Supply Match</Text>
-          <Text className="text-white mt-2">
-            {totals.balance >= 0
-              ? `${totals.balance.toLocaleString()} kg available after current buyer demand.`
-              : `${Math.abs(totals.balance).toLocaleString()} kg shortage against open buyer orders.`}
-          </Text>
-        </View>
-
-        <Text className="text-xl font-black text-[#2A5C43] mb-2">Approval Queue</Text>
-        {queueYields.map((item) => {
-          const isUpdating = updatingId === item.id
-          return (
-            <QueueCard
-              key={`yield-${item.id}`}
-              title={`Harvest #${shortHash(item.id)}`}
-              subtitle={`${item.farmer || "Farmer"} · ${item.variety} · Grade ${item.grade}`}
-              amount={`${Number(item.quantity || 0).toLocaleString()} kg`}
-              approveLabel="Approve"
-              rejectLabel="Reject"
-              status={item.status}
-              isUpdating={isUpdating}
-              canApprove={true}
-              canReject={true}
-              onApprove={() => updateYield(item.id, "Approved")}
-              onReject={() => updateYield(item.id, "Rejected")}
-            />
-          )
-        })}
-        {queueOrders.map((item) => {
-          const isUpdating = updatingId === item.id
-          return (
-            <QueueCard
-              key={`order-${item.id}`}
-              title={`Order #${shortHash(item.id)}`}
-              subtitle={`${item.buyer || "Buyer"} · ${item.produce}`}
-              amount={`${Number(item.quantity || 0).toLocaleString()} kg`}
-              approveLabel="Schedule"
-              rejectLabel="Cancel"
-              status={item.status}
-              isUpdating={isUpdating}
-              canApprove={item.status === "Approved"} // only allow Scheduling if Approved
-              canReject={item.status !== "Cancelled" && item.status !== "Paid" && item.status !== "Fulfilled"}
-              onApprove={() => updateOrder(item.id, "Scheduled")}
-              onReject={() => updateOrder(item.id, "Cancelled")}
-            />
-          )
-        })}
-        {!queueYields.length && !queueOrders.length ? (
-          <View className="bg-white rounded-2xl p-4 border border-gray-200">
-            <Text className="font-black text-[#2A5C43]">All clear</Text>
-            <Text className="text-gray-500 mt-1">New harvest submissions and buyer orders will appear here.</Text>
+        <View className="p-5">
+          <View className="flex-row flex-wrap gap-3 mb-4">
+            <Metric label="Farmers" value={farmers.length.toLocaleString()} icon="groups" />
+            <Metric label="Approved Supply" value={`${totals.approvedSupply.toLocaleString()} kg`} icon="eco" />
+            <Metric label="Open Demand" value={`${totals.openDemand.toLocaleString()} kg`} icon="shopping-cart" />
+            <Metric label="Disbursed" value={`KES ${totals.paidAmount.toLocaleString()}`} icon="payments" />
           </View>
-        ) : null}
+
+          <View className={`rounded-2xl p-4 mb-4 ${totals.balance >= 0 ? "bg-[#125C3F]" : "bg-[#7C2D12]"}`}>
+            <Text className="text-white text-lg font-black">Supply Match</Text>
+            <Text className="text-white mt-2">
+              {totals.balance >= 0
+                ? `${totals.balance.toLocaleString()} kg available after current buyer demand.`
+                : `${Math.abs(totals.balance).toLocaleString()} kg shortage against open buyer orders.`}
+            </Text>
+          </View>
+
+          <Text className="text-xl font-black text-[#2A5C43] mb-2">Approval Queue</Text>
+          {queueYields.map((item) => {
+            const isUpdating = updatingId === item.id
+            return (
+              <QueueCard
+                key={`yield-${item.id}`}
+                title={`Harvest #${shortHash(item.id)}`}
+                subtitle={`${item.farmer || "Farmer"} · ${item.variety} · Grade ${item.grade}`}
+                amount={`${Number(item.quantity || 0).toLocaleString()} kg`}
+                approveLabel="Approve"
+                rejectLabel="Reject"
+                status={item.status}
+                isUpdating={isUpdating}
+                canApprove={true}
+                canReject={true}
+                onApprove={() => updateYield(item.id, "Approved")}
+                onReject={() => updateYield(item.id, "Rejected")}
+              />
+            )
+          })}
+          {queueOrders.map((item) => {
+            const isUpdating = updatingId === item.id
+            return (
+              <QueueCard
+                key={`order-${item.id}`}
+                title={`Order #${shortHash(item.id)}`}
+                subtitle={`${item.buyer || "Buyer"} · ${item.produce}`}
+                amount={`${Number(item.quantity || 0).toLocaleString()} kg`}
+                approveLabel="Schedule"
+                rejectLabel="Cancel"
+                status={item.status}
+                isUpdating={isUpdating}
+                canApprove={item.status === "Approved"}
+                canReject={item.status !== "Cancelled" && item.status !== "Paid" && item.status !== "Fulfilled"}
+                onApprove={() => updateOrder(item.id, "Scheduled")}
+                onReject={() => updateOrder(item.id, "Cancelled")}
+              />
+            )
+          })}
+          {!queueYields.length && !queueOrders.length ? (
+            <View className="bg-white rounded-2xl p-4 border border-gray-200">
+              <Text className="font-black text-[#2A5C43]">All clear</Text>
+              <Text className="text-gray-500 mt-1">New harvest submissions and buyer orders will appear here.</Text>
+            </View>
+          ) : null}
+        </View>
       </ScrollView>
     </SafeAreaView>
   )
