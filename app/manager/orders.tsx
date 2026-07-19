@@ -49,17 +49,21 @@ export default function ManagerOrders() {
   const [yields, setYields] = useState<YieldItem[]>([])
   const [orders, setOrders] = useState<OrderItem[]>([])
   const [toast, setToast] = useState<ToastMsg>(null)
-  // Track which items are currently being updated to show loading state
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
   function showToast(text: string, type: "success" | "error" | "info" = "success") {
     setToast({ text, type })
   }
 
   const refresh = useCallback(async () => {
-    const [yieldRes, orderRes] = await Promise.all([api.get("/yields"), api.get("/orders")])
-    setYields(yieldRes.data)
-    setOrders(orderRes.data)
+    try {
+      const [yieldRes, orderRes] = await Promise.all([api.get("/yields"), api.get("/orders")])
+      setYields(yieldRes.data)
+      setOrders(orderRes.data)
+    } finally {
+      setIsLoading(false)
+    }
   }, [])
 
   usePollingRefresh(refresh)
@@ -166,7 +170,28 @@ export default function ManagerOrders() {
           )}
         </View>
 
-        {mode === "harvests" ? (
+        {isLoading ? (
+          <View>
+            {[1, 2, 3].map((key) => (
+              <View key={key} className="bg-white rounded-2xl p-4 border border-gray-100 mb-3 opacity-70">
+                <View className="flex-row items-start justify-between gap-3 mt-1">
+                  <View className="flex-1">
+                    <View className="h-6 w-2/3 bg-gray-200 rounded-full mb-2" />
+                    <View className="h-4 w-1/2 bg-gray-200 rounded-full mb-1" />
+                    <View className="h-4 w-1/3 bg-gray-200 rounded-full" />
+                  </View>
+                  <View className="h-6 w-20 bg-gray-200 rounded-full" />
+                </View>
+                <View className="h-6 w-1/4 bg-gray-200 rounded-full mt-4" />
+                <View className="flex-row gap-2 mt-4">
+                  <View className="flex-1 h-10 bg-gray-200 rounded-xl" />
+                  <View className="flex-1 h-10 bg-gray-200 rounded-xl" />
+                  <View className="flex-1 h-10 bg-gray-200 rounded-xl" />
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : mode === "harvests" ? (
           filteredYields.length === 0 ? (
             <EmptyCard title="No harvests" message="Farmer harvest submissions will appear here." />
           ) : (

@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage"
 import { Image } from "expo-image"
 import { useFocusEffect, useRouter } from "expo-router"
 import { useCallback, useMemo, useState, useRef } from "react"
-import { Alert, Pressable, ScrollView, Text, TextInput, View, Modal, Dimensions } from "react-native"
+import { Alert, Pressable, ScrollView, Text, TextInput, View, Modal, Dimensions, Platform } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import api from "../../lib/api"
@@ -30,6 +30,7 @@ const screenWidth = Dimensions.get("window").width
 export default function BuyerDashboard() {
   const router = useRouter()
   const [listings, setListings] = useState<Listing[]>([])
+  const [activeOrders, setActiveOrders] = useState<any[]>([])
   const [grade, setGrade] = useState("All Grades")
   const [quantity, setQuantity] = useState("50")
   const [creatingId, setCreatingId] = useState<string | null>(null)
@@ -60,10 +61,11 @@ export default function BuyerDashboard() {
   // Optimization: Cached user details check to prevent unnecessary async operations on poll
   const refresh = useCallback(async () => {
     try {
-      const [yieldsRes, user] = await Promise.all([api.get("/yields"), getSessionUser()])
+      const [yieldsRes, ordersRes, user] = await Promise.all([api.get("/yields"), api.get("/orders"), getSessionUser()])
       const nextListings = yieldsRes.data as Listing[]
+      setActiveOrders(ordersRes.data.filter((o: any) => !["Fulfilled", "Cancelled"].includes(o.status)))
       const visible = nextListings.filter((item) =>
-        ["Approved", "Scheduled", "Exported"].includes(item.status)
+        item.status === "Approved"
       )
       const previousRaw = await AsyncStorage.getItem(listingCountKey)
       const previousCount = previousRaw ? Number(previousRaw) : visible.length
@@ -114,9 +116,10 @@ export default function BuyerDashboard() {
         quantity: requested,
         unitPrice: 1200,
         produce: listing.variety,
+        yield_id: listing.id,
       })
       setSelectedListing(null)
-      Alert.alert("Order created ✓", "Your order was saved. A manager will match it to the harvest.")
+      Alert.alert("Harvest Booked ✓", "You've successfully reserved this harvest. Proceed to pay to lock it in.")
       router.push("/buyer/orders")
     } catch (error: any) {
       Alert.alert("Unable to create order", error?.response?.data?.error || error.message)
@@ -128,13 +131,15 @@ export default function BuyerDashboard() {
   const handleNextPhoto = (photosCount: number) => {
     const nextIndex = (activePhotoIndex + 1) % photosCount
     setActivePhotoIndex(nextIndex)
-    photoScrollViewRef.current?.scrollTo({ x: nextIndex * screenWidth, animated: true })
+    const modalWidth = Platform.OS === "web" && screenWidth > 600 ? 480 : screenWidth
+    photoScrollViewRef.current?.scrollTo({ x: nextIndex * modalWidth, animated: true })
   }
 
   const handlePrevPhoto = (photosCount: number) => {
     const prevIndex = (activePhotoIndex - 1 + photosCount) % photosCount
     setActivePhotoIndex(prevIndex)
-    photoScrollViewRef.current?.scrollTo({ x: prevIndex * screenWidth, animated: true })
+    const modalWidth = Platform.OS === "web" && screenWidth > 600 ? 480 : screenWidth
+    photoScrollViewRef.current?.scrollTo({ x: prevIndex * modalWidth, animated: true })
   }
 
   const grades = ["All Grades", "A", "B", "C"]
@@ -400,7 +405,7 @@ export default function BuyerDashboard() {
           onPress={() => setSelectedListing(null)}
         >
           <View
-            className="bg-white rounded-t-3xl"
+            className="bg-white rounded-t-3xl w-full max-w-[480px] self-center"
             style={{ maxHeight: "85%" }}
             onStartShouldSetResponder={() => true}
           >
@@ -415,19 +420,23 @@ export default function BuyerDashboard() {
                     showsHorizontalScrollIndicator={false}
                     onMomentumScrollEnd={(e) => {
                       const offset = e.nativeEvent.contentOffset.x
-                      const index = Math.round(offset / screenWidth)
+                      const modalWidth = Platform.OS === "web" && screenWidth > 600 ? 480 : screenWidth
+                      const index = Math.round(offset / modalWidth)
                       setActivePhotoIndex(index)
                     }}
                   >
-                    {selectedListing.photos.map((uri, i) => (
-                      <Pressable key={i} onPress={() => setPhotoModal(uri)}>
-                        <Image
-                          source={{ uri }}
-                          style={{ width: screenWidth, height: 240 }}
-                          contentFit="cover"
-                        />
-                      </Pressable>
-                    ))}
+                    {selectedListing.photos.map((uri, i) => {
+                      const modalWidth = Platform.OS === "web" && screenWidth > 600 ? 480 : screenWidth
+                      return (
+                        <Pressable key={i} onPress={() => setPhotoModal(uri)}>
+                          <Image
+                            source={{ uri }}
+                            style={{ width: modalWidth, height: 240 }}
+                            contentFit="cover"
+                          />
+                        </Pressable>
+                      )
+                    })}
                   </ScrollView>
 
                   {/* Left Navigation Arrow */}
@@ -520,19 +529,33 @@ export default function BuyerDashboard() {
                 </View>
 
                 {/* Action buttons */}
-                <Pressable
-                  onPress={() => selectedListing && createOrder(selectedListing)}
-                  disabled={creatingId === selectedListing?.id}
-                  className={`mt-5 rounded-2xl py-4 items-center ${
-                    creatingId === selectedListing?.id ? "bg-[#53866f]" : "bg-[#2A5C43]"
-                  }`}
-                >
-                  <Text className="text-white font-black text-base">
-                    {creatingId === selectedListing?.id
-                      ? "Placing Order..."
-                      : `Place Order — KES ${(Number(quantity || 0) * 1200).toLocaleString()}`}
-                  </Text>
-                </Pressable>
+                {activeOrders.some(o => o.produce === selectedListing?.variety) ? (
+                  <Pressable
+                    onPress={() => {
+                      setSelectedListing(null)
+                      router.push("/buyer/orders")
+                    }}
+                    className="mt-5 rounded-2xl py-4 items-center bg-[#125C3F]"
+                  >
+                    <Text className="text-white font-black text-base">
+                      You already ordered this! View Orders →
+                    </Text>
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    onPress={() => selectedListing && createOrder(selectedListing)}
+                    disabled={creatingId === selectedListing?.id}
+                    className={`mt-5 rounded-2xl py-4 items-center ${
+                      creatingId === selectedListing?.id ? "bg-[#53866f]" : "bg-[#2A5C43]"
+                    }`}
+                  >
+                    <Text className="text-white font-black text-base">
+                      {creatingId === selectedListing?.id
+                        ? "Placing Order..."
+                        : `Place Order — KES ${(Number(quantity || 0) * 1200).toLocaleString()}`}
+                    </Text>
+                  </Pressable>
+                )}
 
                 <Pressable
                   onPress={() => setSelectedListing(null)}

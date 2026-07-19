@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef } from "react"
 import { View, Text, Pressable, Modal, StyleSheet, ScrollView } from "react-native"
 import { MaterialIcons } from "@expo/vector-icons"
-import { useFocusEffect } from "expo-router"
+import { useFocusEffect, useRouter } from "expo-router"
 import api from "../lib/api"
 import { notifyNewListing } from "../lib/notifications"
 
@@ -10,10 +10,12 @@ type AppNotification = {
   title: string
   message: string
   is_read: boolean
+  target_url?: string | null
   created_at: string
 }
 
 export default function NotificationBell({ color = "#0f5238" }: { color?: string }) {
+  const router = useRouter()
   const [modalVisible, setModalVisible] = useState(false)
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   
@@ -96,7 +98,16 @@ export default function NotificationBell({ color = "#0f5238" }: { color?: string
                 </View>
               ) : (
                 notifications.map((n) => (
-                  <View key={n.id} style={[styles.notificationCard, !n.is_read && styles.unreadCard]}>
+                  <Pressable 
+                    key={n.id} 
+                    style={[styles.notificationCard, !n.is_read && styles.unreadCard]}
+                    onPress={() => {
+                      setModalVisible(false)
+                      if (n.target_url) {
+                        router.push(n.target_url as any)
+                      }
+                    }}
+                  >
                     <View style={styles.cardHeader}>
                       <Text style={styles.cardTitle}>{n.title}</Text>
                       {!n.is_read && <View style={styles.unreadDot} />}
@@ -105,7 +116,7 @@ export default function NotificationBell({ color = "#0f5238" }: { color?: string
                     <Text style={styles.cardDate}>
                       {new Date(n.created_at).toLocaleString()}
                     </Text>
-                  </View>
+                  </Pressable>
                 ))
               )}
             </ScrollView>
@@ -142,20 +153,24 @@ const styles = StyleSheet.create({
   },
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.3)",
+    justifyContent: "flex-start",
+    alignItems: "flex-end",
+    paddingTop: 70,
+    paddingRight: 20,
+    paddingLeft: 20,
   },
   modalContent: {
     backgroundColor: "#f9fafb",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    width: "100%",
-    maxHeight: "80%",
+    borderRadius: 24,
+    width: 340,
+    maxWidth: "100%",
+    maxHeight: "70%",
     padding: 24,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 30,
     elevation: 20,
   },
   header: {

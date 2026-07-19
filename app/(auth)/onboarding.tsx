@@ -5,7 +5,8 @@ import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import api from "../../lib/api"
-import { saveSession, type Role } from "../../lib/session"
+import { getSessionUser, saveSession, type Role } from "../../lib/session"
+import WebContainer from "../../components/WebContainer"
 
 const roles: Role[] = ["farmer", "manager", "buyer"]
 
@@ -80,11 +81,12 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets()
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#f4f4f4' }}
-      behavior="padding"
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : StatusBar.currentHeight ?? 0}
-    >
+    <WebContainer bg="#f4f4f4">
+      <KeyboardAvoidingView
+        style={{ flex: 1, backgroundColor: '#f4f4f4' }}
+        behavior="padding"
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : StatusBar.currentHeight ?? 0}
+      >
       <ScrollView
         contentContainerStyle={{ padding: 20, paddingTop: insets.top + 16, paddingBottom: insets.bottom + 40 }}
         keyboardShouldPersistTaps="handled"
@@ -187,8 +189,9 @@ export default function OnboardingScreen() {
               </Pressable>
             </View>
           </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </WebContainer>
   )
 }
 

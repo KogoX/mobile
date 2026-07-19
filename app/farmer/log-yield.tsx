@@ -146,7 +146,8 @@ export default function LogYield() {
         </View>
 
         <View className="mt-4">
-          <Text className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2 ml-1">Harvest Photos</Text>
+          <Text className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1 ml-1">Upload Sample & Farm State</Text>
+          <Text className="text-gray-400 text-[10px] font-bold mb-3 ml-1 leading-tight">Add pictures of the harvest sample and farm condition to help the manager plan pickup & delivery.</Text>
           <View className="flex-row gap-2">
             <Pressable
               onPress={() => capturePhoto(false)}

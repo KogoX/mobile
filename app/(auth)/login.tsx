@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import api from "../../lib/api"
 import { isBiometricSignInEnabled, saveSession, signInWithBiometrics, type Role } from "../../lib/session"
+import WebContainer from "../../components/WebContainer"
 
 const roles: Role[] = ["farmer", "manager", "buyer"]
 const logo = require("../../assets/cemslogo.svg")
@@ -78,11 +79,12 @@ export default function LoginScreen() {
   const insets = useSafeAreaInsets()
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#78716c' }}
-      behavior="padding"
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : StatusBar.currentHeight ?? 0}
-    >
+    <WebContainer bg="#78716c">
+      <KeyboardAvoidingView
+        style={{ flex: 1, backgroundColor: '#78716c' }}
+        behavior="padding"
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : StatusBar.currentHeight ?? 0}
+      >
       <ScrollView
         contentContainerStyle={{
           flexGrow: 1,
@@ -236,10 +238,10 @@ export default function LoginScreen() {
               </Text>
             </Pressable>
           </View>
-
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </WebContainer>
   )
 }
 

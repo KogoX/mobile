@@ -1,4 +1,5 @@
 import { MaterialIcons } from "@expo/vector-icons"
+import { Image } from "expo-image"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { useCallback, useMemo, useState, useEffect } from "react"
 import { Pressable, ScrollView, Text, View, ActivityIndicator, TextInput } from "react-native"
@@ -57,7 +58,7 @@ export default function ManagerDashboard() {
   const [orders, setOrders] = useState<OrderItem[]>([])
   const [payments, setPayments] = useState<PaymentItem[]>([])
   const [toast, setToast] = useState<ToastMsg>(null)
-  const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [updatingState, setUpdatingState] = useState<{ id: string, action: "approve" | "reject" | "tracking" } | null>(null)
   const [managerName, setManagerName] = useState("")
 
   const [trackingOrder, setTrackingOrder] = useState<OrderItem | null>(null)
@@ -119,8 +120,8 @@ export default function ManagerDashboard() {
     }
   }, [orders, payments, yields])
 
-  async function updateYield(id: string, status: string) {
-    setUpdatingId(id)
+  async function updateYield(id: string, status: string, action: "approve" | "reject") {
+    setUpdatingState({ id, action })
     try {
       await api.patch(`/yields/${id}/status`, { status })
       setYields((prev) => prev.map((y) => (y.id === id ? { ...y, status } : y)))
@@ -129,12 +130,12 @@ export default function ManagerDashboard() {
     } catch (error: any) {
       showToast(error?.response?.data?.error || error.message || "Unable to update harvest", "error")
     } finally {
-      setUpdatingId(null)
+      setUpdatingState(null)
     }
   }
 
-  async function updateOrder(id: string, status: string) {
-    setUpdatingId(id)
+  async function updateOrder(id: string, status: string, action: "approve" | "reject") {
+    setUpdatingState({ id, action })
     try {
       await api.patch(`/orders/${id}/status`, { status })
       setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)))
@@ -143,17 +144,17 @@ export default function ManagerDashboard() {
     } catch (error: any) {
       showToast(error?.response?.data?.error || error.message || "Unable to update order", "error")
     } finally {
-      setUpdatingId(null)
+      setUpdatingState(null)
     }
   }
 
   const queueYields = yields.filter((item) => item.status === "Logged").slice(0, 3)
   const queueOrders = orders.filter((item) => item.status === "Processing" || item.status === "Approved").slice(0, 3)
-  const activeShipments = orders.filter((item) => ["Paid", "In Transit", "Ready for Pickup"].includes(item.status))
+  const activeShipments = orders.filter((item) => ["Paid", "Picked Up", "In Transit", "Ready for Pickup"].includes(item.status))
 
   async function handleUpdateTracking() {
     if (!trackingOrder) return
-    setUpdatingId(trackingOrder.id)
+    setUpdatingState({ id: trackingOrder.id, action: "tracking" })
     try {
       await api.patch(`/orders/${trackingOrder.id}/status`, {
         status: trackingStatus || trackingOrder.status,
@@ -166,7 +167,7 @@ export default function ManagerDashboard() {
     } catch (error: any) {
       showToast(error?.response?.data?.error || error.message || "Unable to update tracking", "error")
     } finally {
-      setUpdatingId(null)
+      setUpdatingState(null)
     }
   }
 
@@ -204,26 +205,27 @@ export default function ManagerDashboard() {
 
           <Text className="text-xl font-black text-[#2A5C43] mb-2">Approval Queue</Text>
           {queueYields.map((item) => {
-            const isUpdating = updatingId === item.id
+            const updatingAction = updatingState?.id === item.id ? updatingState.action : null
             return (
               <QueueCard
                 key={`yield-${item.id}`}
                 title={`Harvest #${shortHash(item.id)}`}
                 subtitle={`${item.farmer || "Farmer"} · ${item.variety} · Grade ${item.grade}`}
                 amount={`${Number(item.quantity || 0).toLocaleString()} kg`}
+                photos={item.photos}
                 approveLabel="Approve"
                 rejectLabel="Reject"
                 status={item.status}
-                isUpdating={isUpdating}
+                updatingAction={updatingAction}
                 canApprove={true}
                 canReject={true}
-                onApprove={() => updateYield(item.id, "Approved")}
-                onReject={() => updateYield(item.id, "Rejected")}
+                onApprove={() => updateYield(item.id, "Approved", "approve")}
+                onReject={() => updateYield(item.id, "Rejected", "reject")}
               />
             )
           })}
           {queueOrders.map((item) => {
-            const isUpdating = updatingId === item.id
+            const updatingAction = updatingState?.id === item.id ? updatingState.action : null
             return (
               <QueueCard
                 key={`order-${item.id}`}
@@ -233,11 +235,11 @@ export default function ManagerDashboard() {
                 approveLabel="Schedule"
                 rejectLabel="Cancel"
                 status={item.status}
-                isUpdating={isUpdating}
+                updatingAction={updatingAction}
                 canApprove={item.status === "Approved"}
                 canReject={item.status !== "Cancelled" && item.status !== "Paid" && item.status !== "Fulfilled"}
-                onApprove={() => updateOrder(item.id, "Scheduled")}
-                onReject={() => updateOrder(item.id, "Cancelled")}
+                onApprove={() => updateOrder(item.id, "Scheduled", "approve")}
+                onReject={() => updateOrder(item.id, "Cancelled", "reject")}
               />
             )
           })}
@@ -252,7 +254,7 @@ export default function ManagerDashboard() {
             <>
               <Text className="text-xl font-black text-[#2A5C43] mb-2">Active Shipments</Text>
               {activeShipments.map((item) => {
-                const isUpdating = updatingId === item.id
+                const isUpdating = updatingState?.id === item.id && updatingState?.action === "tracking"
                 return (
                   <View key={`shipment-${item.id}`} className="bg-white rounded-2xl p-4 border border-gray-200 mb-3">
                     <View className="flex-row justify-between mb-2">
@@ -261,11 +263,13 @@ export default function ManagerDashboard() {
                         <Text className="text-[#2A5C43] text-xs font-bold">{item.status}</Text>
                       </View>
                     </View>
-                    <Text className="text-gray-500 mb-1">{item.buyer || "Buyer"} · {item.produce}</Text>
+                    <Text className="text-gray-500 mb-1 font-medium">Pickup from: <Text className="font-bold text-gray-800">{item.farmer || "Farmer"}</Text></Text>
+                    <Text className="text-gray-500 mb-1 font-medium">Deliver to: <Text className="font-bold text-gray-800">{item.buyer || "Buyer"}</Text></Text>
+                    <Text className="text-gray-500 mb-1">{item.produce}</Text>
                     <Text className="text-gray-500 mb-3 text-sm">Qty: {Number(item.quantity || 0).toLocaleString()} kg</Text>
                     
                     <Pressable
-                      className={`py-3 rounded-xl items-center ${isUpdating ? "bg-[#6d9a86]" : "bg-[#2A5C43]"}`}
+                      className={`py-3 rounded-xl items-center flex-row justify-center ${isUpdating ? "bg-[#6d9a86]" : "bg-[#2A5C43]"}`}
                       disabled={isUpdating}
                       onPress={() => {
                         setTrackingOrder(item)
@@ -274,6 +278,7 @@ export default function ManagerDashboard() {
                         setEstimatedDelivery(item.estimated_delivery ? new Date(item.estimated_delivery).toISOString().split('T')[0] : "")
                       }}
                     >
+                      {isUpdating ? <ActivityIndicator size="small" color="#ffffff" style={{ marginRight: 8 }} /> : null}
                       <Text className="text-white font-black">{isUpdating ? "Processing..." : "Update Tracking"}</Text>
                     </Pressable>
                   </View>
@@ -293,7 +298,7 @@ export default function ManagerDashboard() {
 
             <Text className="font-bold text-gray-700 mb-2">Status</Text>
             <View className="flex-row flex-wrap gap-2 mb-4">
-              {["Paid", "In Transit", "Ready for Pickup", "Fulfilled"].map((opt) => (
+              {["Paid", "Picked Up", "In Transit", "Ready for Pickup", "Fulfilled"].map((opt) => (
                 <Pressable
                   key={opt}
                   className={`px-4 py-2 border rounded-xl ${trackingStatus === opt ? "bg-[#2A5C43] border-[#2A5C43]" : "bg-white border-gray-300"}`}
@@ -361,10 +366,11 @@ function QueueCard({
   title,
   subtitle,
   amount,
+  photos,
   approveLabel,
   rejectLabel,
   status,
-  isUpdating,
+  updatingAction,
   canApprove,
   canReject,
   onApprove,
@@ -373,10 +379,11 @@ function QueueCard({
   title: string
   subtitle: string
   amount: string
+  photos?: string[]
   approveLabel: string
   rejectLabel: string
   status: string
-  isUpdating: boolean
+  updatingAction?: "approve" | "reject" | null
   canApprove: boolean
   canReject: boolean
   onApprove: () => void
@@ -394,60 +401,73 @@ function QueueCard({
         </View>
         <Text className="font-black text-gray-900">{amount}</Text>
       </View>
-      {isUpdating ? (
-        <View className="flex-row mt-4 justify-center items-center py-2 gap-2">
-          <ActivityIndicator size="small" color="#2A5C43" />
-          <Text className="text-gray-500 font-bold text-sm">Updating…</Text>
-        </View>
-      ) : (
-        <View className="flex-row gap-3 mt-4">
-          {/* Approve / Schedule Button */}
-          {isApproved ? (
-            <View className="flex-1 bg-[#2A5C43] rounded-xl py-3 items-center flex-row justify-center gap-1">
-              <MaterialIcons name="check-circle" size={14} color="#fff" />
-              <Text className="text-white font-black">{status === "Scheduled" ? "Scheduled" : "Approved"}</Text>
-            </View>
-          ) : (
-            <Pressable
-              onPress={onApprove}
-              disabled={!canApprove}
-              style={({ pressed }) => ({
-                opacity: !canApprove ? 0.45 : pressed ? 0.8 : 1
-              })}
-              className={`flex-1 rounded-xl py-3 items-center ${
-                !canApprove ? "bg-gray-100" : "bg-[#2A5C43]"
-              }`}
-            >
-              <Text className={`font-black ${!canApprove ? "text-gray-400" : "text-white"}`}>{approveLabel}</Text>
-            </Pressable>
-          )}
-
-          {/* Reject / Cancel Button */}
-          {isRejected ? (
-            <View className="flex-1 bg-red-600 rounded-xl py-3 items-center flex-row justify-center gap-1">
-              <MaterialIcons name="cancel" size={14} color="#fff" />
-              <Text className="text-white font-black">{status === "Cancelled" ? "Cancelled" : "Rejected"}</Text>
-            </View>
-          ) : (
-            <Pressable
-              onPress={onReject}
-              disabled={!canReject || isApproved}
-              style={({ pressed }) => ({
-                opacity: (!canReject || isApproved) ? 0.45 : pressed ? 0.8 : 1
-              })}
-              className={`flex-1 rounded-xl py-3 items-center border ${
-                (!canReject || isApproved)
-                  ? "bg-gray-100 border-transparent"
-                  : "bg-white border-red-300"
-              }`}
-            >
-              <Text className={`font-black ${(!canReject || isApproved) ? "text-gray-400" : "text-red-600"}`}>
-                {rejectLabel}
-              </Text>
-            </Pressable>
-          )}
-        </View>
+      
+      {photos && photos.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-3">
+          <View className="flex-row gap-2">
+            {photos.map((uri, idx) => (
+              <Image 
+                key={idx} 
+                source={{ uri }} 
+                style={{ width: 64, height: 64, borderRadius: 8 }} 
+                contentFit="cover" 
+              />
+            ))}
+          </View>
+        </ScrollView>
       )}
+
+      <View className="flex-row gap-3 mt-4">
+        {/* Approve / Schedule Button */}
+        {isApproved ? (
+          <View className="flex-1 bg-[#2A5C43] rounded-xl py-3 items-center flex-row justify-center gap-1">
+            <MaterialIcons name="check-circle" size={14} color="#fff" />
+            <Text className="text-white font-black">{status === "Scheduled" ? "Scheduled" : "Approved"}</Text>
+          </View>
+        ) : (
+          <Pressable
+            onPress={onApprove}
+            disabled={!canApprove || !!updatingAction}
+            style={({ pressed }) => ({
+              opacity: (!canApprove || updatingAction) ? 0.6 : pressed ? 0.8 : 1
+            })}
+            className={`flex-1 rounded-xl py-3 items-center flex-row justify-center ${
+              !canApprove ? "bg-gray-100" : updatingAction === "approve" ? "bg-[#53866f]" : "bg-[#2A5C43]"
+            }`}
+          >
+            {updatingAction === "approve" ? <ActivityIndicator size="small" color="#ffffff" style={{ marginRight: 6 }} /> : null}
+            <Text className={`font-black ${!canApprove ? "text-gray-400" : "text-white"}`}>
+              {updatingAction === "approve" ? "Approving..." : approveLabel}
+            </Text>
+          </Pressable>
+        )}
+
+        {/* Reject / Cancel Button */}
+        {isRejected ? (
+          <View className="flex-1 bg-red-600 rounded-xl py-3 items-center flex-row justify-center gap-1">
+            <MaterialIcons name="cancel" size={14} color="#fff" />
+            <Text className="text-white font-black">{status === "Cancelled" ? "Cancelled" : "Rejected"}</Text>
+          </View>
+        ) : (
+          <Pressable
+            onPress={onReject}
+            disabled={!canReject || isApproved || !!updatingAction}
+            style={({ pressed }) => ({
+              opacity: (!canReject || isApproved || updatingAction) ? 0.6 : pressed ? 0.8 : 1
+            })}
+            className={`flex-1 rounded-xl py-3 items-center flex-row justify-center border ${
+              (!canReject || isApproved)
+                ? "bg-gray-100 border-transparent"
+                : "bg-white border-red-300"
+            }`}
+          >
+            {updatingAction === "reject" ? <ActivityIndicator size="small" color="#dc2626" style={{ marginRight: 6 }} /> : null}
+            <Text className={`font-black ${(!canReject || isApproved) ? "text-gray-400" : "text-red-600"}`}>
+              {updatingAction === "reject" ? "Rejecting..." : rejectLabel}
+            </Text>
+          </Pressable>
+        )}
+      </View>
     </View>
   )
 }

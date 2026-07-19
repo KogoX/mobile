@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import * as LocalAuthentication from "expo-local-authentication"
 import * as SecureStore from "expo-secure-store"
+import { Platform } from "react-native"
 
 import { clearAuthToken, setAuthToken } from "./api"
 
@@ -27,6 +28,8 @@ const biometricTokenKey = "biometricToken"
 const biometricUserKey = "biometricUser"
 
 export async function canUseBiometrics() {
+  if (Platform.OS === "web") return false
+
   const [hasHardware, enrolled] = await Promise.all([
     LocalAuthentication.hasHardwareAsync(),
     LocalAuthentication.isEnrolledAsync()
@@ -36,16 +39,19 @@ export async function canUseBiometrics() {
 }
 
 export async function enableBiometricSignIn(token: string, user: SessionUser) {
+  if (Platform.OS === "web") return
   await SecureStore.setItemAsync(biometricTokenKey, token)
   await SecureStore.setItemAsync(biometricUserKey, JSON.stringify(user))
 }
 
 export async function disableBiometricSignIn() {
+  if (Platform.OS === "web") return
   await SecureStore.deleteItemAsync(biometricTokenKey)
   await SecureStore.deleteItemAsync(biometricUserKey)
 }
 
 export async function isBiometricSignInEnabled() {
+  if (Platform.OS === "web") return false
   const token = await SecureStore.getItemAsync(biometricTokenKey)
   return Boolean(token)
 }
