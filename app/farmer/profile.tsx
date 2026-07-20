@@ -53,21 +53,25 @@ export default function FarmerProfile() {
   const [deleteConfirmId, setDeleteConfirmId] = useState("")
 
   const refresh = useCallback(async () => {
-    const [profileRes, yieldRes, paymentRes] = await Promise.all([
-      api.get("/auth/me"),
-      api.get("/yields"),
-      api.get("/payments")
-    ])
-    setProfile(profileRes.data)
-    setYields(yieldRes.data)
-    setPayments(paymentRes.data)
-    setBiometricEnabled(await isBiometricSignInEnabled())
-    // Load verified managers
     try {
-      const mgrsRes = await api.get("/auth/managers/verified")
-      setManager((mgrsRes.data as Manager[])[0] || null)
-    } catch {
-      setManager(null)
+      const [profileRes, yieldRes, payoutRes] = await Promise.all([
+        api.get("/auth/me"),
+        api.get("/yields"),
+        api.get("/payouts")
+      ])
+      setProfile(profileRes.data)
+      setYields(yieldRes.data)
+      setPayments(payoutRes.data)
+      setBiometricEnabled(await isBiometricSignInEnabled())
+      // Load verified managers
+      try {
+        const mgrsRes = await api.get("/auth/managers/verified")
+        setManager((mgrsRes.data as Manager[])[0] || null)
+      } catch {
+        setManager(null)
+      }
+    } catch (err) {
+      console.log("Failed to refresh profile:", err)
     }
   }, [])
 
@@ -76,7 +80,7 @@ export default function FarmerProfile() {
   const stats = useMemo(() => {
     const totalYield = yields.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
     const verifiedPayments = payments
-      .filter((item) => item.status === "Verified")
+      .filter((item) => item.status === "Paid")
       .reduce((sum, item) => sum + Number(item.amount || 0), 0)
     const gradeA = yields
       .filter((item) => item.grade === "A")

@@ -81,24 +81,28 @@ export default function ManagerDashboard() {
   }
 
   const refresh = useCallback(async () => {
-    const [farmersRes, yieldsRes, ordersRes, paymentsRes] = await Promise.all([
-      api.get("/farmers"),
-      api.get("/yields"),
-      api.get("/orders"),
-      api.get("/payments")
-    ])
-    const previousRaw = await AsyncStorage.getItem(managerHarvestCountKey)
-    const previousCount = previousRaw ? Number(previousRaw) : yieldsRes.data.length
+    try {
+      const [farmersRes, yieldsRes, ordersRes, paymentsRes] = await Promise.all([
+        api.get("/farmers"),
+        api.get("/yields"),
+        api.get("/orders"),
+        api.get("/payments")
+      ])
+      const previousRaw = await AsyncStorage.getItem(managerHarvestCountKey)
+      const previousCount = previousRaw ? Number(previousRaw) : yieldsRes.data.length
 
-    if (yieldsRes.data.length > previousCount) {
-      await notifyNewListing("New farmer harvest", `${yieldsRes.data.length - previousCount} new harvest record(s) need review.`)
+      if (yieldsRes.data.length > previousCount) {
+        await notifyNewListing("New farmer harvest", `${yieldsRes.data.length - previousCount} new harvest record(s) need review.`)
+      }
+
+      await AsyncStorage.setItem(managerHarvestCountKey, String(yieldsRes.data.length))
+      setFarmers(farmersRes.data)
+      setYields(yieldsRes.data)
+      setOrders(ordersRes.data)
+      setPayments(paymentsRes.data)
+    } catch (err) {
+      console.log("Failed to refresh manager dashboard:", err)
     }
-
-    await AsyncStorage.setItem(managerHarvestCountKey, String(yieldsRes.data.length))
-    setFarmers(farmersRes.data)
-    setYields(yieldsRes.data)
-    setOrders(ordersRes.data)
-    setPayments(paymentsRes.data)
   }, [])
 
   usePollingRefresh(refresh)

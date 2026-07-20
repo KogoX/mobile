@@ -21,8 +21,12 @@ export default function FarmerHistory() {
   const [yields, setYields] = useState<YieldItem[]>([])
 
   const refresh = useCallback(async () => {
-    const { data } = await api.get("/yields")
-    setYields(data)
+    try {
+      const { data } = await api.get("/yields")
+      setYields(data)
+    } catch (err) {
+      console.log("Failed to refresh history:", err)
+    }
   }, [])
 
   useFocusEffect(
