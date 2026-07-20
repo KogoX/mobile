@@ -18,6 +18,7 @@ type User = {
   status: string
   created_at: string
   unique_id?: string | null
+  payment_details?: string | null
 }
 
 const filters: Array<Role | "all"> = ["all", "farmer", "buyer", "manager"]
@@ -99,6 +100,7 @@ export default function ManagerUsers() {
                 {user.unique_id ? <Detail icon="fingerprint" value={`ID: ${user.unique_id}`} /> : null}
                 <Detail icon="phone" value={user.phone || "No phone set"} />
                 <Detail icon="location-on" value={user.location || "No location set"} />
+                <Detail icon="account-balance-wallet" value={user.payment_details || "No payment details"} />
                 <Detail icon="verified-user" value={user.status || "Active"} />
                 <Detail icon="event" value={`Joined ${new Date(user.created_at).toLocaleDateString()}`} />
               </View>

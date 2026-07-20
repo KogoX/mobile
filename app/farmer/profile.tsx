@@ -25,6 +25,7 @@ type Profile = {
   status?: string
   created_at?: string
   unique_id?: string | null
+  payment_details?: string | null
 }
 
 type YieldItem = { id: number; quantity: string; grade: string }
@@ -44,7 +45,12 @@ export default function FarmerProfile() {
   const [editName, setEditName] = useState("")
   const [editPhone, setEditPhone] = useState("")
   const [editLocation, setEditLocation] = useState("")
+  const [editPaymentDetails, setEditPaymentDetails] = useState("")
   const [saving, setSaving] = useState(false)
+
+  // Delete state
+  const [deleteMode, setDeleteMode] = useState(false)
+  const [deleteConfirmId, setDeleteConfirmId] = useState("")
 
   const refresh = useCallback(async () => {
     const [profileRes, yieldRes, paymentRes] = await Promise.all([
@@ -87,6 +93,7 @@ export default function FarmerProfile() {
     setEditName(profile.name || "")
     setEditPhone(profile.phone || "")
     setEditLocation(profile.location || "")
+    setEditPaymentDetails(profile.payment_details || "")
     setEditing(true)
   }
 
@@ -104,7 +111,8 @@ export default function FarmerProfile() {
       const { data } = await api.patch("/auth/me", {
         name: editName.trim(),
         phone: editPhone.trim(),
-        location: editLocation.trim()
+        location: editLocation.trim(),
+        payment_details: editPaymentDetails.trim()
       })
       setProfile(data)
       setEditing(false)
@@ -118,6 +126,21 @@ export default function FarmerProfile() {
   async function logout() {
     await clearSession()
     router.replace("/")
+  }
+
+  async function handleDelete() {
+    const requiredId = profile?.unique_id || profile?.email
+    if (!deleteConfirmId || deleteConfirmId.trim() !== requiredId) {
+      Alert.alert("Validation Failed", "The confirmation ID you entered does not match.")
+      return
+    }
+    try {
+      await api.delete("/auth/me")
+      await clearSession()
+      router.replace("/")
+    } catch (err: any) {
+      Alert.alert("Delete failed", err?.response?.data?.error || err.message)
+    }
   }
 
   async function toggleBiometrics() {
@@ -226,8 +249,9 @@ export default function FarmerProfile() {
             {editing ? (
               <>
                 <EditField label="Name" value={editName} onChangeText={setEditName} icon="person-outline" />
-                <EditField label="Phone" value={editPhone} onChangeText={setEditPhone} icon="phone" keyboardType="phone-pad" placeholder="e.g. +254 712 345 678" />
+                <EditField label="Phone" value={editPhone} onChangeText={setEditPhone} icon="phone" keyboardType="phone-pad" />
                 <EditField label="Location" value={editLocation} onChangeText={setEditLocation} icon="location-on" />
+                <EditField label="Payment Details (e.g. M-Pesa or Bank)" value={editPaymentDetails} onChangeText={setEditPaymentDetails} icon="account-balance-wallet" />
 
                 <View className="flex-row gap-3 mt-4">
                   <Pressable
@@ -251,6 +275,7 @@ export default function FarmerProfile() {
                 <Row label="Name" value={profile.name} />
                 <Row label="Phone" value={profile.phone || "Not set"} />
                 <Row label="Location" value={profile.location || "Not set"} />
+                <Row label="Payment Details" value={profile.payment_details || "Not set"} />
               </>
             )}
           </View>
@@ -307,10 +332,39 @@ export default function FarmerProfile() {
           </Text>
         </Pressable>
 
-        <Pressable onPress={logout} className="rounded-xl bg-[#2A5C43] py-4 flex-row items-center justify-center gap-2">
+        <Pressable onPress={logout} className="rounded-xl bg-[#2A5C43] py-4 flex-row items-center justify-center gap-2 mb-2">
           <MaterialIcons name="logout" size={19} color="#ffffff" />
           <Text className="text-white font-black">Logout</Text>
         </Pressable>
+
+        {/* Danger Zone */}
+        {deleteMode ? (
+          <View className="bg-red-50 rounded-xl p-4 border border-red-200 mb-8 mt-2">
+            <Text className="text-xs text-red-800 font-bold mb-2">
+              Type "{profile?.unique_id || profile?.email}" to confirm deletion:
+            </Text>
+            <TextInput
+              className="bg-white border border-red-300 rounded-lg p-2 text-red-900 mb-3"
+              value={deleteConfirmId}
+              onChangeText={setDeleteConfirmId}
+              placeholder="Enter ID"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <View className="flex-row gap-2">
+              <Pressable onPress={() => { setDeleteMode(false); setDeleteConfirmId("") }} className="flex-1 bg-gray-200 rounded-lg py-3 items-center">
+                <Text className="text-gray-700 font-bold text-xs">Cancel</Text>
+              </Pressable>
+              <Pressable onPress={handleDelete} className="flex-1 bg-red-600 rounded-lg py-3 items-center">
+                <Text className="text-white font-bold text-xs">Confirm Delete</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <Pressable onPress={() => setDeleteMode(true)} className="mt-2 mb-8 self-center pb-4">
+            <Text className="text-[11px] text-red-400 font-bold uppercase">Danger: Delete Account</Text>
+          </Pressable>
+        )}
       </ScrollView>
     </SafeAreaView>
   )

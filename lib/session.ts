@@ -14,6 +14,7 @@ export type SessionUser = {
   role: Role
   phone?: string | null
   location?: string | null
+  unique_id?: string | null
 }
 
 export async function saveSession(token: string, user: SessionUser) {

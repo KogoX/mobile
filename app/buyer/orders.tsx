@@ -1,8 +1,9 @@
 import { useFocusEffect, useRouter } from "expo-router"
 import { useCallback, useState } from "react"
-import { Alert, Modal, Pressable, ScrollView, Text, View } from "react-native"
+import { Alert, Modal, Pressable, ScrollView, Text, View, TextInput } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import * as WebBrowser from "expo-web-browser"
+import * as Linking from "expo-linking"
 
 import api from "../../lib/api"
 import { getSessionUser } from "../../lib/session"
@@ -54,14 +55,17 @@ export default function BuyerOrders() {
   async function startPayment(order: Order, method: "card" | "mpesa" | "bank") {
     try {
       setPayingOrderId(order.id)
+      const returnUrl = Linking.createURL("payment-complete")
+
       const { data } = await api.post("/payments/initialize", {
         order_id: order.id,
         method,
-        phone: buyerPhone
+        phone: buyerPhone,
+        callback_url: returnUrl
       })
 
       if ((method === "card" || method === "bank") && data.authorization_url) {
-        await WebBrowser.openBrowserAsync(data.authorization_url)
+        await WebBrowser.openAuthSessionAsync(data.authorization_url, returnUrl)
         await api.post("/payments/verify", { reference: data.reference })
       } else {
         Alert.alert("Payment initiated", data.message || "Complete the payment on your phone.")
@@ -170,28 +174,55 @@ export default function BuyerOrders() {
               Order #{methodOrder ? shortHash(methodOrder.id) : ""} • KES {Number(methodOrder?.total_amount || 0).toLocaleString()}
             </Text>
 
-            <Pressable
-              className="bg-[#2A5C43] rounded-xl py-4 items-center mb-3"
-              onPress={() => methodOrder && startPayment(methodOrder, "card")}
-            >
-              <Text className="text-white font-black">Pay with Card</Text>
-            </Pressable>
+            <Text className="font-bold text-gray-700 text-sm mb-2">M-Pesa Phone Number</Text>
+            <View className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 mb-3">
+              <TextInput
+                value={buyerPhone}
+                onChangeText={setBuyerPhone}
+                placeholder="e.g. 0712345678"
+                keyboardType="phone-pad"
+                className="text-gray-800"
+                style={{ outlineStyle: 'none' } as never}
+              />
+            </View>
 
             <Pressable
-              className="bg-[#1e4d35] rounded-xl py-4 items-center mb-3"
-              onPress={() => methodOrder && startPayment(methodOrder, "bank")}
-            >
-              <Text className="text-white font-black">Pay with Bank Transfer</Text>
-            </Pressable>
-
-            <Pressable
-              className="bg-[#125C3F] rounded-xl py-4 items-center"
-              onPress={() => methodOrder && startPayment(methodOrder, "mpesa")}
+              className="bg-[#125C3F] rounded-xl py-4 items-center mb-6"
+              onPress={() => {
+                const cleanPhone = buyerPhone.replace(/[^0-9]/g, "")
+                if (!cleanPhone || cleanPhone.length < 9) {
+                  Alert.alert("Invalid Phone", "Please enter a valid M-Pesa phone number to receive the prompt.")
+                  return
+                }
+                methodOrder && startPayment(methodOrder, "mpesa")
+              }}
             >
               <Text className="text-white font-black">Pay with M-Pesa</Text>
             </Pressable>
 
-            <Pressable className="mt-4 items-center py-2" onPress={() => setMethodOrder(null)}>
+            <View className="flex-row items-center justify-between mb-6">
+              <View className="flex-1 h-[1px] bg-gray-200" />
+              <Text className="text-gray-400 font-bold px-3 uppercase text-xs">Or use other methods</Text>
+              <View className="flex-1 h-[1px] bg-gray-200" />
+            </View>
+
+            <View className="flex-row gap-3">
+              <Pressable
+                className="flex-1 bg-[#2A5C43] rounded-xl py-4 items-center"
+                onPress={() => methodOrder && startPayment(methodOrder, "card")}
+              >
+                <Text className="text-white font-black text-sm">Card</Text>
+              </Pressable>
+
+              <Pressable
+                className="flex-1 bg-[#1e4d35] rounded-xl py-4 items-center"
+                onPress={() => methodOrder && startPayment(methodOrder, "bank")}
+              >
+                <Text className="text-white font-black text-sm">Bank Transfer</Text>
+              </Pressable>
+            </View>
+
+            <Pressable className="mt-6 items-center py-2" onPress={() => setMethodOrder(null)}>
               <Text className="text-gray-500 font-bold">Cancel</Text>
             </Pressable>
           </View>

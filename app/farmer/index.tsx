@@ -7,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import api from "../../lib/api"
 import { getSessionUser } from "../../lib/session"
 import NotificationBell from "../../components/NotificationBell"
+import { shortHash } from "../../components/Toast"
 
 type YieldItem = {
   id: number
@@ -146,7 +147,7 @@ export default function FarmerDashboard() {
           yields.slice(0, 6).map((entry) => (
             <View key={entry.id} className="bg-white rounded-2xl p-4 border border-gray-200 mb-3">
               <Text className="font-black text-[#2A5C43]">
-                {entry.crop_season} - Grade {entry.grade}
+                #{shortHash(entry.id)} • {entry.crop_season} - Grade {entry.grade}
               </Text>
               <Text className="text-gray-700">{entry.variety}</Text>
               <Text className="text-gray-800 font-bold mt-1">{Number(entry.quantity).toLocaleString()} kg</Text>

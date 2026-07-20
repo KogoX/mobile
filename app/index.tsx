@@ -204,7 +204,7 @@ export default function LandingPage() {
         <View style={styles.container}>
           <View style={[styles.sectionTop, isTablet && styles.sectionTopWide]}>
             <View>
-              <Text style={kicker => kicker}>The Journey</Text>
+              <Text style={styles.kicker}>The Journey</Text>
               <Text style={styles.sectionTitle}>How It Works</Text>
             </View>
             {isTablet ? <Text style={styles.sectionNote}>Simple. Secure. Export-ready.</Text> : null}

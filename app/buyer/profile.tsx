@@ -48,6 +48,10 @@ export default function BuyerProfile() {
   const [editLocation, setEditLocation] = useState("")
   const [saving, setSaving] = useState(false)
 
+  // Delete state
+  const [deleteMode, setDeleteMode] = useState(false)
+  const [deleteConfirmId, setDeleteConfirmId] = useState("")
+
   const refresh = useCallback(async () => {
     const [profileRes, orderRes] = await Promise.all([api.get("/auth/me"), api.get("/orders")])
     setProfile(profileRes.data)
@@ -100,6 +104,21 @@ export default function BuyerProfile() {
   async function logout() {
     await clearSession()
     router.replace("/")
+  }
+
+  async function handleDelete() {
+    const requiredId = profile?.unique_id || profile?.email
+    if (!deleteConfirmId || deleteConfirmId.trim() !== requiredId) {
+      Alert.alert("Validation Failed", "The confirmation ID you entered does not match.")
+      return
+    }
+    try {
+      await api.delete("/auth/me")
+      await clearSession()
+      router.replace("/")
+    } catch (err: any) {
+      Alert.alert("Delete failed", err?.response?.data?.error || err.message)
+    }
   }
 
   async function toggleBiometrics() {
@@ -227,10 +246,39 @@ export default function BuyerProfile() {
           </Text>
         </Pressable>
 
-        <Pressable onPress={logout} className="rounded-xl bg-[#2A5C43] py-4 flex-row items-center justify-center gap-2">
+        <Pressable onPress={logout} className="rounded-xl bg-[#2A5C43] py-4 flex-row items-center justify-center gap-2 mb-2">
           <MaterialIcons name="logout" size={19} color="#ffffff" />
           <Text className="text-white font-black">Logout</Text>
         </Pressable>
+
+        {/* Danger Zone */}
+        {deleteMode ? (
+          <View className="bg-red-50 rounded-xl p-4 border border-red-200 mb-8 mt-2">
+            <Text className="text-xs text-red-800 font-bold mb-2">
+              Type "{profile?.unique_id || profile?.email}" to confirm deletion:
+            </Text>
+            <TextInput
+              className="bg-white border border-red-300 rounded-lg p-2 text-red-900 mb-3"
+              value={deleteConfirmId}
+              onChangeText={setDeleteConfirmId}
+              placeholder="Enter ID"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <View className="flex-row gap-2">
+              <Pressable onPress={() => { setDeleteMode(false); setDeleteConfirmId("") }} className="flex-1 bg-gray-200 rounded-lg py-3 items-center">
+                <Text className="text-gray-700 font-bold text-xs">Cancel</Text>
+              </Pressable>
+              <Pressable onPress={handleDelete} className="flex-1 bg-red-600 rounded-lg py-3 items-center">
+                <Text className="text-white font-bold text-xs">Confirm Delete</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <Pressable onPress={() => setDeleteMode(true)} className="mt-2 mb-8 self-center pb-4">
+            <Text className="text-[11px] text-red-400 font-bold uppercase">Danger: Delete Account</Text>
+          </Pressable>
+        )}
       </ScrollView>
     </SafeAreaView>
   )
@@ -255,13 +303,14 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 function EditField({
-  label, value, onChangeText, icon, keyboardType
+  label, value, onChangeText, icon, keyboardType, placeholder
 }: {
   label: string
   value: string
   onChangeText: (t: string) => void
   icon: keyof typeof MaterialIcons.glyphMap
   keyboardType?: "default" | "phone-pad" | "email-address"
+  placeholder?: string
 }) {
   return (
     <View className="mb-3 mt-1">
@@ -274,6 +323,7 @@ function EditField({
           onChangeText={onChangeText}
           keyboardType={keyboardType}
           autoCapitalize={keyboardType === "phone-pad" ? "none" : "words"}
+          placeholder={placeholder}
           style={{ outlineStyle: "none" } as never}
         />
       </View>

@@ -3,6 +3,7 @@ import { Image } from "expo-image"
 import { useRouter } from "expo-router"
 import { useEffect, useState } from "react"
 import {
+  Alert,
   Pressable,
   ScrollView,
   Text,
@@ -202,30 +203,33 @@ export default function LoginScreen() {
             </Pressable>
           </View>
 
-          {/* Submit Button */}
-          <Pressable 
-            className={`bg-[#2A5C43] rounded-xl py-4 shadow-md mb-8 active:opacity-80 flex-row justify-center items-center ${loading ? 'opacity-70' : ''}`} 
-            onPress={signIn}
-            disabled={loading}
-          >
-            {loading ? <ActivityIndicator color="#fff" style={{ marginRight: 8 }} /> : null}
-            <Text className="text-white text-center font-bold text-base">
-              {loading ? "Signing In..." : "Sign In"}
-            </Text>
-          </Pressable>
-
-          {biometricReady ? (
-            <Pressable
-              className="bg-white border border-[#2A5C43] rounded-xl py-4 mb-8 flex-row justify-center items-center"
-              onPress={biometricSignIn}
+          {/* Submit Button & Biometrics */}
+          <View className="flex-row gap-3 mb-8">
+            <Pressable 
+              className={`flex-1 bg-[#2A5C43] rounded-xl py-4 shadow-md active:opacity-80 flex-row justify-center items-center ${loading ? 'opacity-70' : ''}`} 
+              onPress={signIn}
               disabled={loading}
             >
-              <MaterialIcons name="fingerprint" size={21} color="#2A5C43" />
-              <Text className="text-[#2A5C43] text-center font-bold text-base ml-2">
-                Sign in with biometrics
+              {loading ? <ActivityIndicator color="#fff" style={{ marginRight: 8 }} /> : null}
+              <Text className="text-white text-center font-bold text-base">
+                {loading ? "Signing In..." : "Sign In"}
               </Text>
             </Pressable>
-          ) : null}
+
+            <Pressable
+              className={`border rounded-xl px-4 justify-center items-center ${biometricReady ? 'bg-white border-[#2A5C43]' : 'bg-gray-50 border-gray-200'}`}
+              onPress={() => {
+                if (biometricReady) {
+                  biometricSignIn()
+                } else {
+                  Alert.alert("Not Enabled", "Please sign in with your password first, then enable biometrics in your profile settings.")
+                }
+              }}
+              disabled={loading}
+            >
+              <MaterialIcons name="fingerprint" size={28} color={biometricReady ? "#2A5C43" : "#9CA3AF"} />
+            </Pressable>
+          </View>
 
           {/* Footer */}
           <View className="flex-col items-center gap-1 mb-4">

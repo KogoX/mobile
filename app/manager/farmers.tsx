@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons"
 import { useFocusEffect } from "expo-router"
 import { useCallback, useMemo, useState } from "react"
-import { Pressable, ScrollView, Text, TextInput, View, ActivityIndicator } from "react-native"
+import { Alert, Pressable, ScrollView, Text, TextInput, View, ActivityIndicator } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import api from "../../lib/api"

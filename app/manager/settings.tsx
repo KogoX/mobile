@@ -40,15 +40,28 @@ export default function ManagerProfile() {
   const [editLocation, setEditLocation] = useState("")
   const [saving, setSaving] = useState(false)
 
+  // Delete state
+  const [deleteMode, setDeleteMode] = useState(false)
+  const [deleteConfirmId, setDeleteConfirmId] = useState("")
+
   // Verify state
   const [verifyMode, setVerifyMode] = useState(false)
   const [nationalId, setNationalId] = useState("")
   const [verifying, setVerifying] = useState(false)
 
   const refresh = useCallback(async () => {
-    const { data } = await api.get("/auth/me")
-    setProfile(data)
-    setBiometricEnabled(await isBiometricSignInEnabled())
+    try {
+      const { data } = await api.get("/auth/me")
+      setProfile(data)
+    } catch (error) {
+      console.error("Profile load error:", error)
+    }
+    
+    try {
+      setBiometricEnabled(await isBiometricSignInEnabled())
+    } catch (error) {
+      console.error("Biometrics error:", error)
+    }
   }, [])
 
   useFocusEffect(useCallback(() => { refresh() }, [refresh]))
@@ -109,6 +122,21 @@ export default function ManagerProfile() {
     router.replace("/")
   }
 
+  async function handleDelete() {
+    const requiredId = profile?.unique_id || profile?.email
+    if (!deleteConfirmId || deleteConfirmId.trim() !== requiredId) {
+      Alert.alert("Validation Failed", "The confirmation ID you entered does not match.")
+      return
+    }
+    try {
+      await api.delete("/auth/me")
+      await clearSession()
+      router.replace("/")
+    } catch (err: any) {
+      Alert.alert("Delete failed", err?.response?.data?.error || err.message)
+    }
+  }
+
   async function toggleBiometrics() {
     try {
       if (biometricEnabled) {
@@ -140,9 +168,9 @@ export default function ManagerProfile() {
 
         {/* Header */}
         <View className="flex-row items-center justify-between mb-1">
-          <Text className="text-3xl font-black text-[#2A5C43]">Profile</Text>
+          <Text className="text-3xl font-black text-[#2A5C43]">Profile Settings</Text>
           <LanguageSelector color="#6b7280" />
-          {!editing && !verifyMode && (
+          {!editing && !verifyMode && profile && (
             <Pressable
               onPress={startEditing}
               className="h-11 w-11 rounded-full bg-white border border-gray-200 items-center justify-center"
@@ -153,8 +181,12 @@ export default function ManagerProfile() {
         </View>
         <Text className="text-gray-500 mt-1 mb-5">Manage your manager account and verification.</Text>
 
-        {/* Hero card */}
-        {profile ? (
+        {!profile ? (
+          <View className="items-center justify-center py-10">
+            <ActivityIndicator size="large" color="#2A5C43" />
+            <Text className="text-gray-500 mt-4 font-bold">Loading profile...</Text>
+          </View>
+        ) : (
           <View className="bg-[#125C3F] rounded-2xl p-5 mb-4">
             <View className="flex-row items-start justify-between">
               <View className="h-14 w-14 rounded-full bg-white/15 items-center justify-center mb-4">
@@ -180,7 +212,7 @@ export default function ManagerProfile() {
               <Text className="text-white text-[11px] uppercase font-black">{profile.status || "Active"}</Text>
             </View>
           </View>
-        ) : null}
+        )}
 
         {/* Account Details / Edit */}
         {profile ? (
@@ -306,10 +338,39 @@ export default function ManagerProfile() {
           </Text>
         </Pressable>
 
-        <Pressable onPress={logout} className="rounded-xl bg-[#2A5C43] py-4 flex-row items-center justify-center gap-2">
+        <Pressable onPress={logout} className="rounded-xl bg-[#2A5C43] py-4 flex-row items-center justify-center gap-2 mb-2">
           <MaterialIcons name="logout" size={19} color="#ffffff" />
           <Text className="text-white font-black">Logout</Text>
         </Pressable>
+
+        {/* Danger Zone */}
+        {deleteMode ? (
+          <View className="bg-red-50 rounded-xl p-4 border border-red-200 mb-8 mt-2">
+            <Text className="text-xs text-red-800 font-bold mb-2">
+              Type "{profile?.unique_id || profile?.email}" to confirm deletion:
+            </Text>
+            <TextInput
+              className="bg-white border border-red-300 rounded-lg p-2 text-red-900 mb-3"
+              value={deleteConfirmId}
+              onChangeText={setDeleteConfirmId}
+              placeholder="Enter ID"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <View className="flex-row gap-2">
+              <Pressable onPress={() => { setDeleteMode(false); setDeleteConfirmId("") }} className="flex-1 bg-gray-200 rounded-lg py-3 items-center">
+                <Text className="text-gray-700 font-bold text-xs">Cancel</Text>
+              </Pressable>
+              <Pressable onPress={handleDelete} className="flex-1 bg-red-600 rounded-lg py-3 items-center">
+                <Text className="text-white font-bold text-xs">Confirm Delete</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <Pressable onPress={() => setDeleteMode(true)} className="mt-2 mb-8 self-center pb-4">
+            <Text className="text-[11px] text-red-400 font-bold uppercase">Danger: Delete Account</Text>
+          </Pressable>
+        )}
       </ScrollView>
     </SafeAreaView>
   )

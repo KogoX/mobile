@@ -29,23 +29,29 @@ type YieldItem = {
   grade: string
   status: string
   created_at: string
+  photos?: string[]
 }
 
 type OrderItem = {
   id: string
   buyer: string
+  farmer?: string
   produce: string
   quantity: string
   total_amount: string
   status: string
   payment_status?: string | null
   created_at: string
+  tracking_location?: string | null
+  estimated_delivery?: string | null
 }
 
 type PaymentItem = {
   id: string
+  order_id: string
   amount: string
   status: string
+  created_at: string
 }
 
 type ToastMsg = { text: string; type: "success" | "error" | "info" } | null
@@ -119,6 +125,61 @@ export default function ManagerDashboard() {
       balance: approvedSupply - openDemand
     }
   }, [orders, payments, yields])
+
+  type Activity = {
+    id: string
+    type: "yield" | "order" | "payment"
+    title: string
+    subtitle: string
+    amount?: string
+    status: string
+    date: Date
+  }
+
+  const recentActivities = useMemo(() => {
+    const activities: Activity[] = []
+
+    yields.forEach(y => {
+      if (!y.created_at) return
+      activities.push({
+        id: `yield-${y.id}`,
+        type: "yield",
+        title: `Harvest Logged: ${y.variety}`,
+        subtitle: `By ${y.farmer || "Farmer"}`,
+        amount: `${Number(y.quantity || 0).toLocaleString()} kg`,
+        status: y.status,
+        date: new Date(y.created_at)
+      })
+    })
+
+    orders.forEach(o => {
+      if (!o.created_at) return
+      activities.push({
+        id: `order-${o.id}`,
+        type: "order",
+        title: `Order Placed: ${o.produce}`,
+        subtitle: `By ${o.buyer || "Buyer"}`,
+        amount: `${Number(o.quantity || 0).toLocaleString()} kg`,
+        status: o.status,
+        date: new Date(o.created_at)
+      })
+    })
+
+    payments.forEach(p => {
+      if (!p.created_at) return
+      activities.push({
+        id: `payment-${p.id}`,
+        type: "payment",
+        title: `Payment Received`,
+        subtitle: `For Order #${shortHash(p.order_id || p.id)}`,
+        amount: `KES ${Number(p.amount || 0).toLocaleString()}`,
+        status: p.status,
+        date: new Date(p.created_at)
+      })
+    })
+
+    return activities.sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 5)
+  }, [yields, orders, payments])
 
   async function updateYield(id: string, status: string, action: "approve" | "reject") {
     setUpdatingState({ id, action })
@@ -202,6 +263,35 @@ export default function ManagerDashboard() {
                 : `${Math.abs(totals.balance).toLocaleString()} kg shortage against open buyer orders.`}
             </Text>
           </View>
+
+          {recentActivities.length > 0 && (
+            <View className="mb-6">
+              <Text className="text-xl font-black text-[#2A5C43] mb-3">Recent Activity</Text>
+              <View className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                {recentActivities.map((activity, index) => {
+                  const isLast = index === recentActivities.length - 1
+                  const iconName = activity.type === "yield" ? "eco" : activity.type === "order" ? "shopping-cart" : "payments"
+                  const iconColor = activity.type === "yield" ? "#10b981" : activity.type === "order" ? "#3b82f6" : "#f59e0b"
+                  
+                  return (
+                    <View key={activity.id} className={`p-4 flex-row items-center gap-3 ${isLast ? "" : "border-b border-gray-100"}`}>
+                      <View className="h-10 w-10 rounded-full items-center justify-center bg-gray-50">
+                        <MaterialIcons name={iconName} size={20} color={iconColor} />
+                      </View>
+                      <View className="flex-1">
+                        <Text className="font-bold text-gray-900">{activity.title}</Text>
+                        <Text className="text-gray-500 text-xs">{activity.subtitle} · {activity.date.toLocaleDateString()}</Text>
+                      </View>
+                      <View className="items-end">
+                        <Text className="font-black text-[#2A5C43]">{activity.amount}</Text>
+                        <Text className="text-[10px] uppercase font-bold text-gray-400">{activity.status}</Text>
+                      </View>
+                    </View>
+                  )
+                })}
+              </View>
+            </View>
+          )}
 
           <Text className="text-xl font-black text-[#2A5C43] mb-2">Approval Queue</Text>
           {queueYields.map((item) => {
@@ -383,7 +473,7 @@ function QueueCard({
   approveLabel: string
   rejectLabel: string
   status: string
-  updatingAction?: "approve" | "reject" | null
+  updatingAction?: "approve" | "reject" | "tracking" | null
   canApprove: boolean
   canReject: boolean
   onApprove: () => void
