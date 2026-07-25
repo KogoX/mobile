@@ -13,7 +13,12 @@ export default function LogYield() {
   const [season, setSeason] = useState("Main Season 2026");
   const [quantity, setQuantity] = useState("");
   const [grade, setGrade] = useState("A");
-  const [date, setDate] = useState("15/06/2026");
+  const [date, setDate] = useState(() => {
+    const today = new Date()
+    const day = String(today.getDate()).padStart(2, "0")
+    const month = String(today.getMonth() + 1).padStart(2, "0")
+    return `${day}/${month}/${today.getFullYear()}`
+  });
   const [photos, setPhotos] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
 

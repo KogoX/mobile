@@ -1,13 +1,10 @@
 import { MaterialIcons } from "@expo/vector-icons"
-import { useFocusEffect } from "expo-router"
 import { useCallback, useMemo, useState } from "react"
 import { ScrollView, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import api from "../../lib/api"
-import { getSessionUser } from "../../lib/session"
-import NotificationBell from "../../components/NotificationBell"
-import { shortHash } from "../../components/Toast"
+import { usePollingRefresh } from "../../lib/polling"
 
 type YieldItem = {
   id: number
@@ -38,6 +35,11 @@ type OrderItem = {
   created_at: string
 }
 
+type FarmerProfile = {
+  name?: string | null
+  unique_id?: string | null
+}
+
 type ActivityItem =
   | { type: "yield"; data: YieldItem; timestamp: number }
   | { type: "payout"; data: PayoutItem; timestamp: number }
@@ -49,32 +51,37 @@ export default function FarmerDashboard() {
   const [yields, setYields] = useState<YieldItem[]>([])
   const [payouts, setPayouts] = useState<PayoutItem[]>([])
   const [orders, setOrders] = useState<OrderItem[]>([])
+  const [loadError, setLoadError] = useState("")
 
   const refresh = useCallback(async () => {
-    try {
-      const [yieldRes, payoutRes, orderRes, user] = await Promise.all([
-        api.get("/yields"),
-        api.get("/payouts"),
-        api.get("/orders"),
-        getSessionUser()
-      ])
-      setYields(yieldRes.data)
-      setPayouts(payoutRes.data)
-      setOrders(orderRes.data)
-      if (user?.name) setName(user.name)
-      if (user?.unique_id) setUniqueId(user.unique_id)
-    } catch (err) {
-      console.log("Failed to refresh farmer dashboard:", err)
+    const results = await Promise.allSettled([
+      api.get("/auth/me"),
+      api.get("/yields"),
+      api.get("/payouts"),
+      api.get("/orders")
+    ])
+
+    const [profileRes, yieldRes, payoutRes, orderRes] = results
+    const failed = results.filter((result) => result.status === "rejected")
+
+    if (profileRes.status === "fulfilled") {
+      const profile = profileRes.value.data as FarmerProfile
+      setName(profile.name || "Farmer")
+      setUniqueId(profile.unique_id || "")
     }
+    if (yieldRes.status === "fulfilled") setYields(yieldRes.value.data)
+    if (payoutRes.status === "fulfilled") setPayouts(payoutRes.value.data)
+    if (orderRes.status === "fulfilled") setOrders(orderRes.value.data)
+
+    setLoadError(failed.length ? "Live records are taking longer than usual. Your dashboard is showing the latest saved data." : "")
+    failed.forEach((result) => {
+      if (result.status === "rejected") {
+        console.log("Failed to refresh farmer dashboard section:", result.reason)
+      }
+    })
   }, [])
 
-  useFocusEffect(
-    useCallback(() => {
-      refresh()
-      const timer = setInterval(refresh, 8000)
-      return () => clearInterval(timer)
-    }, [refresh])
-  )
+  usePollingRefresh(refresh)
 
   const totalYield = useMemo(
     () => yields.reduce((sum, entry) => sum + Number(entry.quantity || 0), 0),
@@ -129,6 +136,11 @@ export default function FarmerDashboard() {
         <Text className="text-gray-500 mt-1 mb-5">
           Your farm activity, payouts and market demand from live records.
         </Text>
+        {loadError ? (
+          <View className="bg-amber-50 rounded-xl border border-amber-200 px-4 py-3 mb-4">
+            <Text className="text-amber-800 font-bold text-sm">{loadError}</Text>
+          </View>
+        ) : null}
 
         <View className="flex-row gap-3 mb-3">
           <SummaryCard icon="eco" label="Total Yield" value={`${totalYield.toLocaleString()} kg`} />

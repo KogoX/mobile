@@ -231,7 +231,7 @@ export default function BuyerDashboard() {
               <MaterialIcons name="eco" size={56} color="#d1d5db" />
               <Text className="text-gray-400 font-black text-lg mt-4">No listings available</Text>
               <Text className="text-gray-400 text-sm text-center mt-1 px-8">
-                Once a manager verifies a farmer's harvest, it will appear here.
+                Once a manager verifies a farmer harvest, it will appear here.
               </Text>
             </View>
           )}

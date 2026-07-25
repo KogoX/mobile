@@ -347,7 +347,7 @@ export default function ManagerProfile() {
         {deleteMode ? (
           <View className="bg-red-50 rounded-xl p-4 border border-red-200 mb-8 mt-2">
             <Text className="text-xs text-red-800 font-bold mb-2">
-              Type "{profile?.unique_id || profile?.email}" to confirm deletion:
+              Type {profile?.unique_id || profile?.email} to confirm deletion:
             </Text>
             <TextInput
               className="bg-white border border-red-300 rounded-lg p-2 text-red-900 mb-3"

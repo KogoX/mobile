@@ -2,7 +2,7 @@ import { MaterialIcons } from "@expo/vector-icons"
 import { useFocusEffect, useRouter } from "expo-router"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { useCallback, useMemo, useState } from "react"
-import { Alert, Pressable, ScrollView, Text, TextInput, View, ActivityIndicator } from "react-native"
+import { Alert, Linking, Pressable, ScrollView, Text, TextInput, View, ActivityIndicator } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import api from "../../lib/api"
@@ -26,6 +26,12 @@ type Profile = {
   created_at?: string
   unique_id?: string | null
   payment_details?: string | null
+  manager_id?: string | null
+  manager_name?: string | null
+  manager_email?: string | null
+  manager_phone?: string | null
+  manager_unique_id?: string | null
+  manager_verified?: boolean | null
 }
 
 type YieldItem = { id: number; quantity: string; grade: string }
@@ -39,6 +45,9 @@ export default function FarmerProfile() {
   const [payments, setPayments] = useState<PaymentItem[]>([])
   const [biometricEnabled, setBiometricEnabled] = useState(false)
   const [manager, setManager] = useState<Manager | null>(null)
+  const [managers, setManagers] = useState<Manager[]>([])
+  const [loadError, setLoadError] = useState("")
+  const [linkingManagerId, setLinkingManagerId] = useState<string | null>(null)
 
   // Edit state
   const [editing, setEditing] = useState(false)
@@ -53,26 +62,60 @@ export default function FarmerProfile() {
   const [deleteConfirmId, setDeleteConfirmId] = useState("")
 
   const refresh = useCallback(async () => {
-    try {
-      const [profileRes, yieldRes, payoutRes] = await Promise.all([
-        api.get("/auth/me"),
-        api.get("/yields"),
-        api.get("/payouts")
-      ])
-      setProfile(profileRes.data)
-      setYields(yieldRes.data)
-      setPayments(payoutRes.data)
-      setBiometricEnabled(await isBiometricSignInEnabled())
-      // Load verified managers
-      try {
-        const mgrsRes = await api.get("/auth/managers/verified")
-        setManager((mgrsRes.data as Manager[])[0] || null)
-      } catch {
+    const [profileRes, yieldRes, payoutRes, managerRes] = await Promise.allSettled([
+      api.get("/auth/me"),
+      api.get("/yields"),
+      api.get("/payouts"),
+      api.get("/auth/managers/verified")
+    ])
+
+    let hasFailure = false
+
+    if (profileRes.status === "fulfilled") {
+      const profileData = profileRes.value.data as Profile
+      setProfile(profileData)
+      await AsyncStorage.setItem("user", JSON.stringify(profileData))
+      if (profileData.manager_id) {
+        setManager({
+          id: profileData.manager_id,
+          name: profileData.manager_name || "Assigned Manager",
+          email: profileData.manager_email || "",
+          phone: profileData.manager_phone,
+          unique_id: profileData.manager_unique_id,
+          verified: Boolean(profileData.manager_verified)
+        })
+      } else {
         setManager(null)
       }
-    } catch (err) {
-      console.log("Failed to refresh profile:", err)
+    } else {
+      hasFailure = true
+      console.log("Failed to refresh farmer profile account:", profileRes.reason)
     }
+
+    if (yieldRes.status === "fulfilled") {
+      setYields(yieldRes.value.data)
+    } else {
+      hasFailure = true
+      console.log("Failed to refresh farmer profile yields:", yieldRes.reason)
+    }
+
+    if (payoutRes.status === "fulfilled") {
+      setPayments(payoutRes.value.data)
+    } else {
+      hasFailure = true
+      console.log("Failed to refresh farmer profile payouts:", payoutRes.reason)
+    }
+
+    if (managerRes.status === "fulfilled") {
+      const verifiedManagers = managerRes.value.data as Manager[]
+      setManagers(verifiedManagers)
+    } else {
+      hasFailure = true
+      console.log("Failed to refresh verified managers:", managerRes.reason)
+    }
+
+    setBiometricEnabled(await isBiometricSignInEnabled())
+    setLoadError(hasFailure ? "Some live profile details are taking longer than usual. Showing the latest saved information." : "")
   }, [])
 
   useFocusEffect(useCallback(() => { refresh() }, [refresh]))
@@ -119,6 +162,7 @@ export default function FarmerProfile() {
         payment_details: editPaymentDetails.trim()
       })
       setProfile(data)
+      await AsyncStorage.setItem("user", JSON.stringify(data))
       setEditing(false)
     } catch (err: any) {
       Alert.alert("Save failed", err?.response?.data?.error || err.message)
@@ -172,6 +216,30 @@ export default function FarmerProfile() {
     }
   }
 
+  async function linkManager(selectedManager: Manager) {
+    setLinkingManagerId(selectedManager.id)
+    try {
+      const { data } = await api.patch("/auth/me/manager", { manager_id: selectedManager.id })
+      setProfile(data)
+      await AsyncStorage.setItem("user", JSON.stringify(data))
+      setManager(selectedManager)
+      Alert.alert("Manager linked", `${selectedManager.name} is now assigned to your account.`)
+    } catch (err: any) {
+      Alert.alert("Could not link manager", err?.response?.data?.error || "Please try again shortly.")
+    } finally {
+      setLinkingManagerId(null)
+    }
+  }
+
+  function contactManager(type: "phone" | "email", selectedManager: Manager) {
+    const target = type === "phone" ? selectedManager.phone : selectedManager.email
+    if (!target) {
+      Alert.alert("Contact unavailable", "This manager has not added those contact details yet.")
+      return
+    }
+    Linking.openURL(type === "phone" ? `tel:${target}` : `mailto:${target}`)
+  }
+
   return (
     <SafeAreaView className="flex-1 bg-[#FCF9F8]">
       <ScrollView className="flex-1 p-5" contentContainerStyle={{ paddingBottom: 30 }}>
@@ -203,6 +271,11 @@ export default function FarmerProfile() {
           </View>
         </View>
         <Text className="text-gray-500 mt-1 mb-5">Your live account and farm performance summary.</Text>
+        {loadError ? (
+          <View className="bg-amber-50 rounded-xl border border-amber-200 px-4 py-3 mb-4">
+            <Text className="text-amber-800 font-bold text-sm">{loadError}</Text>
+          </View>
+        ) : null}
 
         {/* Hero card */}
         <View className="bg-[#125C3F] rounded-2xl p-5 mb-4">
@@ -314,12 +387,90 @@ export default function FarmerProfile() {
               {manager.unique_id ? (
                 <Text className="text-xs text-gray-400 mt-2">Manager ID: {manager.unique_id}</Text>
               ) : null}
+              <View className="flex-row gap-2 mt-3">
+                <Pressable
+                  onPress={() => contactManager("phone", manager)}
+                  className="flex-1 bg-[#E7F5EE] rounded-xl py-3 items-center flex-row justify-center gap-2"
+                >
+                  <MaterialIcons name="phone" size={16} color="#2A5C43" />
+                  <Text className="text-[#2A5C43] font-black text-xs">Call</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => contactManager("email", manager)}
+                  className="flex-1 bg-[#E7F5EE] rounded-xl py-3 items-center flex-row justify-center gap-2"
+                >
+                  <MaterialIcons name="mail-outline" size={16} color="#2A5C43" />
+                  <Text className="text-[#2A5C43] font-black text-xs">Email</Text>
+                </Pressable>
+              </View>
             </>
           ) : (
             <View className="flex-row items-center gap-2 bg-amber-50 rounded-xl px-3 py-3">
               <MaterialIcons name="info-outline" size={18} color="#d97706" />
               <Text className="text-amber-700 text-sm font-medium flex-1">
                 No verified manager assigned yet.
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <View className="bg-white rounded-2xl p-4 border border-gray-200 mb-4">
+          <View className="flex-row items-center gap-2 mb-3">
+            <MaterialIcons name="groups" size={18} color="#2A5C43" />
+            <Text className="text-[11px] text-gray-500 uppercase font-black">Available Managers</Text>
+          </View>
+          {managers.length > 0 ? (
+            managers.map((item) => {
+              const isAssigned = item.id === profile?.manager_id || item.id === manager?.id
+              const isLinking = linkingManagerId === item.id
+              return (
+                <View key={item.id} className="border border-gray-100 rounded-xl p-3 mb-3">
+                  <View className="flex-row items-start gap-3">
+                    <View className="h-10 w-10 rounded-full bg-[#E7F5EE] items-center justify-center">
+                      <MaterialIcons name="support-agent" size={21} color="#2A5C43" />
+                    </View>
+                    <View className="flex-1">
+                      <View className="flex-row items-center gap-1">
+                        <Text className="text-gray-900 font-black">{item.name}</Text>
+                        <MaterialIcons name="verified" size={14} color="#2A5C43" />
+                      </View>
+                      <Text className="text-gray-500 text-xs mt-0.5">{item.email}</Text>
+                      {item.phone ? <Text className="text-gray-500 text-xs mt-0.5">{item.phone}</Text> : null}
+                      {item.unique_id ? <Text className="text-gray-400 text-[10px] mt-1">ID: {item.unique_id}</Text> : null}
+                    </View>
+                  </View>
+                  <View className="flex-row gap-2 mt-3">
+                    <Pressable
+                      onPress={() => contactManager("phone", item)}
+                      className="h-10 w-10 rounded-xl bg-gray-50 border border-gray-100 items-center justify-center"
+                    >
+                      <MaterialIcons name="phone" size={16} color="#2A5C43" />
+                    </Pressable>
+                    <Pressable
+                      onPress={() => contactManager("email", item)}
+                      className="h-10 w-10 rounded-xl bg-gray-50 border border-gray-100 items-center justify-center"
+                    >
+                      <MaterialIcons name="mail-outline" size={16} color="#2A5C43" />
+                    </Pressable>
+                    <Pressable
+                      onPress={() => linkManager(item)}
+                      disabled={isAssigned || Boolean(linkingManagerId)}
+                      className={`flex-1 rounded-xl py-3 items-center flex-row justify-center gap-2 ${isAssigned ? "bg-gray-100" : "bg-[#2A5C43]"}`}
+                    >
+                      {isLinking ? <ActivityIndicator size="small" color="#fff" /> : null}
+                      <Text className={`font-black text-xs ${isAssigned ? "text-gray-500" : "text-white"}`}>
+                        {isAssigned ? "Assigned" : isLinking ? "Linking..." : "Link Manager"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )
+            })
+          ) : (
+            <View className="flex-row items-center gap-2 bg-amber-50 rounded-xl px-3 py-3">
+              <MaterialIcons name="info-outline" size={18} color="#d97706" />
+              <Text className="text-amber-700 text-sm font-medium flex-1">
+                No verified managers are available right now.
               </Text>
             </View>
           )}
@@ -345,7 +496,7 @@ export default function FarmerProfile() {
         {deleteMode ? (
           <View className="bg-red-50 rounded-xl p-4 border border-red-200 mb-8 mt-2">
             <Text className="text-xs text-red-800 font-bold mb-2">
-              Type "{profile?.unique_id || profile?.email}" to confirm deletion:
+              Type {profile?.unique_id || profile?.email} to confirm deletion:
             </Text>
             <TextInput
               className="bg-white border border-red-300 rounded-lg p-2 text-red-900 mb-3"

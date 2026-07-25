@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons"
 import { useFocusEffect } from "expo-router"
 import { useCallback, useMemo, useState } from "react"
-import { Alert, Pressable, ScrollView, Text, TextInput, View, ActivityIndicator } from "react-native"
+import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View, ActivityIndicator } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import api from "../../lib/api"
@@ -13,6 +13,8 @@ type FarmerSummary = {
   name: string
   location: string | null
   status: string
+  manager_id?: string | null
+  manager_name?: string | null
   total_yield_kg: string
 }
 
@@ -25,6 +27,8 @@ type User = {
   location?: string | null
   status: string
   created_at: string
+  manager_id?: string | null
+  manager_name?: string | null
 }
 
 type Farmer = FarmerSummary & {
@@ -63,6 +67,16 @@ export default function ManagerFarmers() {
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [toast, setToast] = useState<ToastMsg>(null)
+  const [showCreate, setShowCreate] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [newFarmer, setNewFarmer] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    location: "",
+    payment_details: "",
+    password: ""
+  })
 
   function showToast(text: string, type: "success" | "error" | "info" = "success") {
     setToast({ text, type })
@@ -86,6 +100,8 @@ export default function ManagerFarmers() {
         phone: user?.phone,
         created_at: user?.created_at,
         status: user?.status || farmer.status,
+        manager_id: user?.manager_id || farmer.manager_id,
+        manager_name: user?.manager_name || farmer.manager_name,
       }
     })
   }, [farmers, users])
@@ -156,6 +172,54 @@ export default function ManagerFarmers() {
     )
   }
 
+  function updateNewFarmer(field: keyof typeof newFarmer, value: string) {
+    setNewFarmer((current) => ({ ...current, [field]: value }))
+  }
+
+  function resetCreateForm() {
+    setNewFarmer({
+      name: "",
+      email: "",
+      phone: "",
+      location: "",
+      payment_details: "",
+      password: ""
+    })
+  }
+
+  async function createFarmer() {
+    if (!newFarmer.name.trim() || !newFarmer.password.trim()) {
+      showToast("Name and temporary password are required.", "error")
+      return
+    }
+
+    setCreating(true)
+    try {
+      const { data } = await api.post("/auth/farmers", {
+        name: newFarmer.name.trim(),
+        email: newFarmer.email.trim(),
+        phone: newFarmer.phone.trim(),
+        location: newFarmer.location.trim(),
+        payment_details: newFarmer.payment_details.trim(),
+        password: newFarmer.password
+      })
+      setFarmers((current) => [data, ...current])
+      setUsers((current) => [data, ...current])
+      setShowCreate(false)
+      resetCreateForm()
+      showToast(`${data.name} registered and linked to you.`)
+      Alert.alert(
+        "Farmer registered",
+        `Login email: ${data.email}\nTemporary password: ${newFarmer.password}`
+      )
+      await refresh()
+    } catch (err: any) {
+      showToast(err?.response?.data?.error || err.message || "Farmer registration failed", "error")
+    } finally {
+      setCreating(false)
+    }
+  }
+
   return (
     <SafeAreaView className="flex-1 bg-[#FCF9F8]">
       <Toast message={toast} onDone={() => setToast(null)} />
@@ -164,6 +228,14 @@ export default function ManagerFarmers() {
         <Text className="text-gray-500 mt-1 mb-5">
           Verify farmers to list their harvests in the buyer market.
         </Text>
+
+        <Pressable
+          onPress={() => setShowCreate(true)}
+          className="bg-[#2A5C43] rounded-2xl px-4 py-4 mb-4 flex-row items-center justify-center gap-2"
+        >
+          <MaterialIcons name="person-add" size={20} color="#ffffff" />
+          <Text className="text-white font-black">Register Farmer</Text>
+        </Pressable>
 
         {/* Stats */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
@@ -282,12 +354,18 @@ export default function ManagerFarmers() {
                   {farmer.created_at ? (
                     <View className="flex-row items-center gap-1">
                       <MaterialIcons name="calendar-today" size={13} color="#9ca3af" />
-                      <Text className="text-gray-400 text-xs">
-                        Joined {new Date(farmer.created_at).toLocaleDateString()}
-                      </Text>
-                    </View>
-                  ) : null}
+                    <Text className="text-gray-400 text-xs">
+                      Joined {new Date(farmer.created_at).toLocaleDateString()}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+              {farmer.manager_name ? (
+                <View className="flex-row items-center gap-1 mt-2 px-1">
+                  <MaterialIcons name="supervisor-account" size={14} color="#6b7280" />
+                  <Text className="text-gray-500 text-xs font-bold">Manager: {farmer.manager_name}</Text>
                 </View>
+              ) : null}
 
                 {/* Expand indicator */}
                 <View className="flex-row justify-center mt-2">
@@ -354,6 +432,40 @@ export default function ManagerFarmers() {
           )
         })}
       </ScrollView>
+
+      <Modal visible={showCreate} transparent animationType="slide">
+        <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowCreate(false)}>
+          <View className="bg-white rounded-t-3xl p-6" onStartShouldSetResponder={() => true}>
+            <Text className="text-[#2A5C43] text-2xl font-black">Register Farmer</Text>
+            <Text className="text-gray-500 mt-1 mb-5">Create an account for a farmer and link it to your manager profile.</Text>
+
+            <CreateField label="Full Name" value={newFarmer.name} onChangeText={(v) => updateNewFarmer("name", v)} icon="person-outline" />
+            <CreateField label="Email (optional)" value={newFarmer.email} onChangeText={(v) => updateNewFarmer("email", v)} icon="mail-outline" keyboardType="email-address" />
+            <CreateField label="Phone" value={newFarmer.phone} onChangeText={(v) => updateNewFarmer("phone", v)} icon="phone" keyboardType="phone-pad" />
+            <CreateField label="Location" value={newFarmer.location} onChangeText={(v) => updateNewFarmer("location", v)} icon="location-on" />
+            <CreateField label="Payment Details" value={newFarmer.payment_details} onChangeText={(v) => updateNewFarmer("payment_details", v)} icon="account-balance-wallet" />
+            <CreateField label="Temporary Password" value={newFarmer.password} onChangeText={(v) => updateNewFarmer("password", v)} icon="lock-outline" secureTextEntry />
+
+            <View className="flex-row gap-3 mt-4">
+              <Pressable
+                onPress={() => setShowCreate(false)}
+                disabled={creating}
+                className="flex-1 border border-gray-300 rounded-xl py-3 items-center"
+              >
+                <Text className="text-gray-600 font-bold">Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={createFarmer}
+                disabled={creating}
+                className={`flex-1 rounded-xl py-3 items-center flex-row justify-center gap-2 ${creating ? "bg-[#6d9a86]" : "bg-[#2A5C43]"}`}
+              >
+                {creating ? <ActivityIndicator color="#ffffff" size="small" /> : null}
+                <Text className="text-white font-bold">{creating ? "Creating..." : "Create"}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -408,5 +520,39 @@ function ActionBtn({
     >
       <Text className={`font-black text-sm ${textStyles[tone]}`}>{label}</Text>
     </Pressable>
+  )
+}
+
+function CreateField({
+  label,
+  value,
+  onChangeText,
+  icon,
+  keyboardType,
+  secureTextEntry
+}: {
+  label: string
+  value: string
+  onChangeText: (value: string) => void
+  icon: keyof typeof MaterialIcons.glyphMap
+  keyboardType?: "default" | "email-address" | "phone-pad"
+  secureTextEntry?: boolean
+}) {
+  return (
+    <View className="mb-3">
+      <Text className="text-[11px] text-gray-500 uppercase font-black mb-1">{label}</Text>
+      <View className="flex-row items-center bg-gray-50 border border-gray-200 rounded-xl px-3">
+        <MaterialIcons name={icon} size={18} color="#6b7280" />
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          keyboardType={keyboardType}
+          secureTextEntry={secureTextEntry}
+          autoCapitalize={keyboardType === "email-address" ? "none" : "words"}
+          className="flex-1 min-h-[44px] ml-2 text-gray-800"
+          style={{ outlineStyle: "none" } as never}
+        />
+      </View>
+    </View>
   )
 }
