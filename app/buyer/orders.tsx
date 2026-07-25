@@ -1,3 +1,4 @@
+import { useFocusRefresh } from "../../lib/polling"
 import { MaterialIcons } from "@expo/vector-icons"
 import { Image } from "expo-image"
 import * as Linking from "expo-linking"
@@ -43,13 +44,7 @@ export default function BuyerOrders() {
     }
   }, [])
 
-  useFocusEffect(
-    useCallback(() => {
-      refresh()
-      const timer = setInterval(refresh, 8000)
-      return () => clearInterval(timer)
-    }, [refresh])
-  )
+  useFocusRefresh(refresh)
 
   async function startPayment(order: Order) {
     try {

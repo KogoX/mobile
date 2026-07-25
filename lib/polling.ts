@@ -18,14 +18,14 @@ function useGuardedRefresh(refreshFn: () => Promise<void>) {
 }
 
 export function usePollingRefresh(refreshFn: () => Promise<void>, intervalMs = 8000) {
+  // Overridden: aggressive polling disabled to save mobile data.
+  // We now only refresh on screen focus.
   const guardedRefresh = useGuardedRefresh(refreshFn)
 
   useFocusEffect(
     useCallback(() => {
       guardedRefresh()
-      const timer = setInterval(guardedRefresh, intervalMs)
-      return () => clearInterval(timer)
-    }, [guardedRefresh, intervalMs])
+    }, [guardedRefresh])
   )
 }
 

@@ -5,7 +5,7 @@ import { Pressable, ScrollView, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import api from "../../lib/api"
-import { usePollingRefresh } from "../../lib/polling"
+import { useFocusRefresh } from "../../lib/polling"
 import type { Role } from "../../lib/session"
 
 type User = {
@@ -32,13 +32,7 @@ export default function ManagerUsers() {
     setUsers(data)
   }, [])
 
-  useFocusEffect(
-    useCallback(() => {
-      refresh()
-      const timer = setInterval(refresh, 8000)
-      return () => clearInterval(timer)
-    }, [refresh])
-  )
+  useFocusRefresh(refresh)
 
   const filteredUsers = useMemo(
     () => (activeFilter === "all" ? users : users.filter((user) => user.role === activeFilter)),

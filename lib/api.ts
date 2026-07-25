@@ -75,4 +75,27 @@ api.interceptors.response.use(
   }
 )
 
+const memoryCache = new Map<string, { data: any; timestamp: number }>()
+
+/**
+ * Helper to fetch data with an in-memory cache to prevent duplicate fetching
+ * and improve app startup speed across tab switches.
+ */
+export async function fetchWithCache(url: string, maxAgeMs = 2 * 60 * 1000) {
+  const cached = memoryCache.get(url)
+  if (cached && Date.now() - cached.timestamp < maxAgeMs) {
+    // Return cached data immediately, but we can also trigger a background refresh
+    // For simplicity, just return the cached data to prevent duplicate requests.
+    return { data: cached.data }
+  }
+  
+  const response = await api.get(url)
+  memoryCache.set(url, { data: response.data, timestamp: Date.now() })
+  return response
+}
+
+export function clearApiCache() {
+  memoryCache.clear()
+}
+
 export default api

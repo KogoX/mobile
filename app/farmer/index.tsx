@@ -3,7 +3,7 @@ import { useCallback, useMemo, useState } from "react"
 import { ScrollView, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
-import api from "../../lib/api"
+import api, { fetchWithCache } from "../../lib/api"
 import { usePollingRefresh } from "../../lib/polling"
 
 type YieldItem = {
@@ -54,31 +54,18 @@ export default function FarmerDashboard() {
   const [loadError, setLoadError] = useState("")
 
   const refresh = useCallback(async () => {
-    const results = await Promise.allSettled([
-      api.get("/auth/me"),
-      api.get("/yields"),
-      api.get("/payouts"),
-      api.get("/orders")
-    ])
-
-    const [profileRes, yieldRes, payoutRes, orderRes] = results
-    const failed = results.filter((result) => result.status === "rejected")
-
-    if (profileRes.status === "fulfilled") {
-      const profile = profileRes.value.data as FarmerProfile
+    // Fetch independently so cached items render instantly
+    fetchWithCache("/auth/me").then(res => {
+      const profile = res.data as FarmerProfile
       setName(profile.name || "Farmer")
       setUniqueId(profile.unique_id || "")
-    }
-    if (yieldRes.status === "fulfilled") setYields(yieldRes.value.data)
-    if (payoutRes.status === "fulfilled") setPayouts(payoutRes.value.data)
-    if (orderRes.status === "fulfilled") setOrders(orderRes.value.data)
+    }).catch(console.error)
 
-    setLoadError(failed.length ? "Live records are taking longer than usual. Your dashboard is showing the latest saved data." : "")
-    failed.forEach((result) => {
-      if (result.status === "rejected") {
-        console.log("Failed to refresh farmer dashboard section:", result.reason)
-      }
-    })
+    fetchWithCache("/yields").then(res => setYields(res.data)).catch(console.error)
+    fetchWithCache("/payouts").then(res => setPayouts(res.data)).catch(console.error)
+    fetchWithCache("/orders").then(res => setOrders(res.data)).catch(console.error)
+    
+    setLoadError("")
   }, [])
 
   usePollingRefresh(refresh)

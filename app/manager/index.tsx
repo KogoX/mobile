@@ -5,7 +5,7 @@ import { useCallback, useMemo, useState, useEffect } from "react"
 import { Pressable, ScrollView, Text, View, ActivityIndicator, TextInput } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
-import api from "../../lib/api"
+import api, { fetchWithCache } from "../../lib/api"
 import { usePollingRefresh } from "../../lib/polling"
 import { notifyNewListing } from "../../lib/notifications"
 import { getSessionUser } from "../../lib/session"
@@ -81,28 +81,22 @@ export default function ManagerDashboard() {
   }
 
   const refresh = useCallback(async () => {
-    try {
-      const [farmersRes, yieldsRes, ordersRes, paymentsRes] = await Promise.all([
-        api.get("/farmers"),
-        api.get("/yields"),
-        api.get("/orders"),
-        api.get("/payments")
-      ])
+    // Fetch independently to prevent blocking
+    fetchWithCache("/farmers").then(res => setFarmers(res.data)).catch(console.error)
+    
+    fetchWithCache("/yields").then(async (res) => {
+      const data = res.data
       const previousRaw = await AsyncStorage.getItem(managerHarvestCountKey)
-      const previousCount = previousRaw ? Number(previousRaw) : yieldsRes.data.length
-
-      if (yieldsRes.data.length > previousCount) {
-        await notifyNewListing("New farmer harvest", `${yieldsRes.data.length - previousCount} new harvest record(s) need review.`)
+      const previousCount = previousRaw ? Number(previousRaw) : data.length
+      if (data.length > previousCount) {
+        await notifyNewListing("New farmer harvest", `${data.length - previousCount} new harvest record(s) need review.`)
       }
+      await AsyncStorage.setItem(managerHarvestCountKey, String(data.length))
+      setYields(data)
+    }).catch(console.error)
 
-      await AsyncStorage.setItem(managerHarvestCountKey, String(yieldsRes.data.length))
-      setFarmers(farmersRes.data)
-      setYields(yieldsRes.data)
-      setOrders(ordersRes.data)
-      setPayments(paymentsRes.data)
-    } catch (err) {
-      console.log("Failed to refresh manager dashboard:", err)
-    }
+    fetchWithCache("/orders").then(res => setOrders(res.data)).catch(console.error)
+    fetchWithCache("/payments").then(res => setPayments(res.data)).catch(console.error)
   }, [])
 
   usePollingRefresh(refresh)

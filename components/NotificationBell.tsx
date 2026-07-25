@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef } from "react"
 import { View, Text, Pressable, Modal, StyleSheet, ScrollView } from "react-native"
 import { MaterialIcons } from "@expo/vector-icons"
 import { useFocusEffect, useRouter } from "expo-router"
+import { useFocusRefresh } from "../lib/polling"
 import api from "../lib/api"
 import { notifyNewListing } from "../lib/notifications"
 
@@ -43,13 +44,7 @@ export default function NotificationBell({ color = "#0f5238" }: { color?: string
     }
   }, [])
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchNotifications()
-      const interval = setInterval(fetchNotifications, 10000) // Poll every 10 seconds
-      return () => clearInterval(interval)
-    }, [fetchNotifications])
-  )
+  useFocusRefresh(fetchNotifications)
 
   const handleOpen = async () => {
     setModalVisible(true)

@@ -1,3 +1,4 @@
+import { useFocusRefresh } from "../../lib/polling"
 import { useFocusEffect } from "expo-router"
 import { useCallback, useState } from "react"
 import { ScrollView, Text, View } from "react-native"
@@ -29,13 +30,7 @@ export default function FarmerPayments() {
     }
   }, [])
 
-  useFocusEffect(
-    useCallback(() => {
-      refresh()
-      const timer = setInterval(refresh, 8000)
-      return () => clearInterval(timer)
-    }, [refresh])
-  )
+  useFocusRefresh(refresh)
 
   return (
     <SafeAreaView className="flex-1 bg-[#FCF9F8]">

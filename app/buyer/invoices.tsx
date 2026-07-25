@@ -1,3 +1,4 @@
+import { useFocusRefresh } from "../../lib/polling"
 import { MaterialIcons } from "@expo/vector-icons"
 import { useFocusEffect } from "expo-router"
 import { useCallback, useMemo, useState } from "react"
@@ -26,13 +27,7 @@ export default function BuyerInvoices() {
     setOrders(data)
   }, [])
 
-  useFocusEffect(
-    useCallback(() => {
-      refresh()
-      const timer = setInterval(refresh, 8000)
-      return () => clearInterval(timer)
-    }, [refresh])
-  )
+  useFocusRefresh(refresh)
 
   const totals = useMemo(() => {
     const paid = orders.filter((order) => order.status === "Paid" || order.payment_status === "Verified")

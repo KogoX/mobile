@@ -5,7 +5,7 @@ import { Pressable, ScrollView, Text, View, ActivityIndicator } from "react-nati
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import api from "../../lib/api"
-import { usePollingRefresh } from "../../lib/polling"
+import { useFocusRefresh } from "../../lib/polling"
 import { Toast, shortHash } from "../../components/Toast"
 
 type PaymentItem = {
@@ -38,13 +38,7 @@ export default function ManagerPayouts() {
     }
   }, [])
 
-  useFocusEffect(
-    useCallback(() => {
-      refresh()
-      const timer = setInterval(refresh, 8000)
-      return () => clearInterval(timer)
-    }, [refresh])
-  )
+  useFocusRefresh(refresh)
 
   const totals = useMemo(() => {
     const verified = payments.filter((item) => item.status === "Verified")

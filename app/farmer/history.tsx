@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons"
 import { useFocusEffect } from "expo-router"
 import { useCallback, useState } from "react"
-import { ScrollView, Text, View } from "react-native"
+import { FlatList, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import api from "../../lib/api"
@@ -43,24 +43,42 @@ export default function FarmerHistory() {
 
   return (
     <SafeAreaView className="flex-1 bg-[#FCF9F8]">
-      <ScrollView className="flex-1 p-5" contentContainerStyle={{ paddingBottom: 40 }}>
-        <Text className="text-3xl font-black text-[#2A5C43]">Upload History</Text>
-        <Text className="text-gray-500 mt-1 mb-5">All your historical harvest records and their status.</Text>
+      <FlatList
+        className="flex-1 px-5 pt-5"
+        contentContainerStyle={{ paddingBottom: 40 }}
+        data={!isLoading ? yields : []}
+        keyExtractor={(item) => item.id}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        ListHeaderComponent={
+          <View>
+            <Text className="text-3xl font-black text-[#2A5C43]">Upload History</Text>
+            <Text className="text-gray-500 mt-1 mb-5">All your historical harvest records and their status.</Text>
 
-        {loadError ? (
-          <View className="bg-amber-50 rounded-xl border border-amber-200 px-4 py-3 mb-4">
-            <Text className="text-amber-800 font-bold text-sm">{loadError}</Text>
+            {loadError ? (
+              <View className="bg-amber-50 rounded-xl border border-amber-200 px-4 py-3 mb-4">
+                <Text className="text-amber-800 font-bold text-sm">{loadError}</Text>
+              </View>
+            ) : null}
+
+            {isLoading && (
+              <View className="items-center py-10 bg-white rounded-2xl border border-gray-200">
+                <MaterialIcons name="sync" size={48} color="#d1d5db" />
+                <Text className="text-gray-400 font-black text-lg mt-4">Loading history...</Text>
+              </View>
+            )}
+          </View>
+        }
+        ListEmptyComponent={!isLoading ? (
+          <View className="items-center py-10 bg-white rounded-2xl border border-gray-200">
+            <MaterialIcons name="history" size={48} color="#d1d5db" />
+            <Text className="text-gray-400 font-black text-lg mt-4">No history found</Text>
+            <Text className="text-gray-400 text-center mt-1">You have not uploaded any yields yet.</Text>
           </View>
         ) : null}
-
-        {isLoading ? (
-          <View className="items-center py-10 bg-white rounded-2xl border border-gray-200">
-            <MaterialIcons name="sync" size={48} color="#d1d5db" />
-            <Text className="text-gray-400 font-black text-lg mt-4">Loading history...</Text>
-          </View>
-        ) : yields.length ? (
-          yields.map((entry) => (
-            <View key={entry.id} className="bg-white rounded-2xl p-4 border border-gray-200 mb-3">
+        renderItem={({ item: entry }) => (
+            <View className="bg-white rounded-2xl p-4 border border-gray-200 mb-3">
               <View className="flex-row items-start justify-between">
                 <View className="flex-1 mr-2">
                   <Text className="font-black text-[#2A5C43]">
@@ -77,15 +95,8 @@ export default function FarmerHistory() {
                 <Text className="text-gray-400 text-xs">{new Date(entry.created_at).toLocaleDateString()}</Text>
               </View>
             </View>
-          ))
-        ) : (
-          <View className="items-center py-10 bg-white rounded-2xl border border-gray-200">
-            <MaterialIcons name="history" size={48} color="#d1d5db" />
-            <Text className="text-gray-400 font-black text-lg mt-4">No history found</Text>
-            <Text className="text-gray-400 text-center mt-1">You have not uploaded any yields yet.</Text>
-          </View>
         )}
-      </ScrollView>
+      />
     </SafeAreaView>
   )
 }

@@ -1,3 +1,4 @@
+import { useFocusRefresh } from "../../lib/polling"
 import { MaterialIcons } from "@expo/vector-icons"
 import { useFocusEffect } from "expo-router"
 import { useCallback, useMemo, useState } from "react"
@@ -66,13 +67,7 @@ export default function ManagerDisburse() {
     }
   }, [])
 
-  useFocusEffect(
-    useCallback(() => {
-      refresh()
-      const timer = setInterval(refresh, 8000)
-      return () => clearInterval(timer)
-    }, [refresh])
-  )
+  useFocusRefresh(refresh)
 
   function chooseFarmer(farmer: Farmer) {
     setSelectedFarmer(farmer)
