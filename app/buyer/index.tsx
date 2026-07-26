@@ -46,9 +46,11 @@ export function getBuyerUnitPrice(grade?: string): number {
   return 160; // Grade A default
 }
 
+let _inMemoryMarketCache: Listing[] | null = null;
+
 export default function BuyerDashboard() {
   const router = useRouter();
-  const [listings, setListings] = useState<Listing[]>([]);
+  const [listings, setListings] = useState<Listing[]>(() => _inMemoryMarketCache || []);
   const [activeOrders, setActiveOrders] = useState<any[]>([]);
   const [grade, setGrade] = useState("All Grades");
   const [quantity, setQuantity] = useState("50");
@@ -58,7 +60,7 @@ export default function BuyerDashboard() {
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [photoModal, setPhotoModal] = useState<string | null>(null);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => !_inMemoryMarketCache);
 
   const photoScrollViewRef = useRef<ScrollView>(null);
 
@@ -85,6 +87,10 @@ export default function BuyerDashboard() {
   );
 
   const loadFromCache = useCallback(() => {
+    if (_inMemoryMarketCache) {
+      setListings(_inMemoryMarketCache);
+      setIsLoading(false);
+    }
     getSessionUser().then((user) => {
       if (user?.name) setBuyerName(user.name);
       if (user?.unique_id) setUniqueId(user.unique_id);
@@ -94,6 +100,7 @@ export default function BuyerDashboard() {
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
+          _inMemoryMarketCache = parsed;
           setListings(parsed);
           setIsLoading(false);
         } catch {}
@@ -104,8 +111,10 @@ export default function BuyerDashboard() {
   // Instant 0ms hydration on mount & tab focus
   useFocusEffect(
     useCallback(() => {
+      let isMounted = true;
       loadFromCache();
       refresh();
+      return () => { isMounted = false; };
     }, [loadFromCache]),
   );
 
@@ -120,42 +129,46 @@ export default function BuyerDashboard() {
 
       fetchWithCache("/orders")
         .then((res) => {
-          setActiveOrders(
-            res.data.filter(
-              (o: any) => !["Fulfilled", "Cancelled"].includes(o.status),
-            ),
-          );
+          if (Array.isArray(res.data)) {
+            setActiveOrders(
+              res.data.filter(
+                (o: any) => !["Fulfilled", "Cancelled"].includes(o.status),
+              ),
+            );
+          }
         })
         .catch(console.error);
 
       fetchWithCache("/yields")
         .then(async (res) => {
-          const nextListings = res.data as Listing[];
-          const visible = nextListings.filter(
-            (item) => item.status === "Approved",
-          );
-          const previousRaw = await AsyncStorage.getItem(listingCountKey);
-          const previousCount = previousRaw
-            ? Number(previousRaw)
-            : visible.length;
-
-          if (visible.length > previousCount) {
-            await notifyNewListing(
-              "New avocado listing",
-              `${visible.length - previousCount} fresh harvest listing(s) are available.`,
+          if (Array.isArray(res.data)) {
+            const nextListings = res.data as Listing[];
+            const visible = nextListings.filter(
+              (item) => item.status === "Approved",
             );
-          }
+            const previousRaw = await AsyncStorage.getItem(listingCountKey);
+            const previousCount = previousRaw
+              ? Number(previousRaw)
+              : visible.length;
 
-          await AsyncStorage.setItem(listingCountKey, String(visible.length));
-          setListings(nextListings);
-          AsyncStorage.setItem(
-            "buyer_market_cache",
-            JSON.stringify(nextListings),
-          ).catch(() => {});
-          setIsLoading(false);
+            if (visible.length > previousCount) {
+              await notifyNewListing(
+                "New avocado listing",
+                `${visible.length - previousCount} fresh harvest listing(s) are available.`,
+              );
+            }
+
+            await AsyncStorage.setItem(listingCountKey, String(visible.length));
+            _inMemoryMarketCache = nextListings;
+            setListings(nextListings);
+            AsyncStorage.setItem(
+              "buyer_market_cache",
+              JSON.stringify(nextListings),
+            ).catch(() => {});
+          }
         })
-        .catch(() => setIsLoading(false));
-    } catch {
+        .catch(() => {});
+    } finally {
       setIsLoading(false);
     }
   }, []);
@@ -677,7 +690,7 @@ export default function BuyerDashboard() {
                   {selectedListing?.variety} · {selectedListing?.crop_season}
                 </Text>
 
-                {/* Details */}
+                {/* Details & Interactive Quantity Selector */}
                 <View className="bg-[#F4FBF7] rounded-2xl p-4 mt-4 gap-3">
                   <DetailRow
                     icon="grade"
@@ -699,13 +712,6 @@ export default function BuyerDashboard() {
                     value={`KES ${getBuyerUnitPrice(selectedListing?.grade).toLocaleString()} / kg`}
                   />
                   <DetailRow
-                    icon="shopping-basket"
-                    label="Your Order"
-                    value={`${Number(quantity || 0).toLocaleString()} kg = KES ${(
-                      Number(quantity || 0) * getBuyerUnitPrice(selectedListing?.grade)
-                    ).toLocaleString()}`}
-                  />
-                  <DetailRow
                     icon="calendar-today"
                     label="Harvest Date"
                     value={
@@ -716,49 +722,102 @@ export default function BuyerDashboard() {
                         : ""
                     }
                   />
-                  <DetailRow
-                    icon="local-shipping"
-                    label="Status"
-                    value={selectedListing?.status || ""}
-                  />
                 </View>
 
-                {/* Action buttons */}
-                {activeOrders.some(
-                  (o) => o.produce === selectedListing?.variety,
-                ) ? (
-                  <Pressable
-                    onPress={() => {
-                      setSelectedListing(null);
-                      router.push("/buyer/orders");
-                    }}
-                    className="mt-5 rounded-2xl py-4 items-center bg-[#125C3F]"
-                  >
-                    <Text className="text-white font-black text-base">
-                      You already ordered this! View Orders →
+                {/* Editable Order Quantity Section */}
+                <View className="mt-5">
+                  <View className="flex-row justify-between items-center mb-2">
+                    <Text className="font-black text-[#2A5C43] uppercase text-xs tracking-wider">
+                      Select Order Quantity (kg)
                     </Text>
-                  </Pressable>
-                ) : (
-                  <Pressable
-                    onPress={() =>
-                      selectedListing && createOrder(selectedListing)
-                    }
-                    disabled={creatingId === selectedListing?.id}
-                    className={`mt-5 rounded-2xl py-4 items-center ${
-                      creatingId === selectedListing?.id
-                        ? "bg-[#53866f]"
-                        : "bg-[#2A5C43]"
-                    }`}
-                  >
-                    <Text className="text-white font-black text-base">
-                      {creatingId === selectedListing?.id
-                        ? "Placing Order..."
-                        : `Place Order — KES ${(
-                            Number(quantity || 0) * getBuyerUnitPrice(selectedListing?.grade)
-                          ).toLocaleString()}`}
+                    <Text className="text-xs font-bold text-gray-500">
+                      Max: {Number(selectedListing?.quantity || 0).toLocaleString()} kg
                     </Text>
-                  </Pressable>
-                )}
+                  </View>
+
+                  {/* Preset Chips */}
+                  <View className="flex-row flex-wrap gap-2 mb-3">
+                    {[50, 100, 500, 1000].map((preset) => {
+                      const isSelected = Number(quantity) === preset;
+                      return (
+                        <Pressable
+                          key={preset}
+                          onPress={() => setQuantity(String(preset))}
+                          className={`px-3 py-2 rounded-xl border ${
+                            isSelected
+                              ? "bg-[#2A5C43] border-[#2A5C43]"
+                              : "bg-[#F4FBF7] border-[#2A5C43]/20"
+                          }`}
+                        >
+                          <Text
+                            className={`text-xs font-black ${
+                              isSelected ? "text-white" : "text-[#2A5C43]"
+                            }`}
+                          >
+                            {preset} kg
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                    <Pressable
+                      onPress={() =>
+                        setQuantity(String(selectedListing?.quantity || ""))
+                      }
+                      className="px-3 py-2 rounded-xl border bg-[#F4FBF7] border-[#2A5C43]/20"
+                    >
+                      <Text className="text-xs font-black text-[#2A5C43]">Max</Text>
+                    </Pressable>
+                  </View>
+
+                  {/* Quantity Input Box */}
+                  <View className="bg-white border-2 border-[#2A5C43]/40 rounded-2xl px-4 py-3 flex-row items-center justify-between">
+                    <TextInput
+                      value={quantity}
+                      onChangeText={setQuantity}
+                      keyboardType="numeric"
+                      placeholder="Enter quantity in kg"
+                      style={{ outlineStyle: "none" } as never}
+                      className="text-xl font-black text-gray-900 flex-1"
+                    />
+                    <Text className="text-sm font-black text-[#2A5C43] ml-2">kg</Text>
+                  </View>
+                </View>
+
+                {/* Total Cost Breakdown */}
+                <View className="bg-[#E7F5EE] rounded-2xl p-4 mt-4 border border-[#BDE3D0]">
+                  <Text className="text-xs text-gray-500 font-bold uppercase mb-1">
+                    Total Order Payable
+                  </Text>
+                  <Text className="text-2xl font-black text-[#2A5C43]">
+                    KES ${(
+                      Number(quantity || 0) * getBuyerUnitPrice(selectedListing?.grade)
+                    ).toLocaleString()}
+                  </Text>
+                  <Text className="text-xs text-[#2A5C43]/80 font-bold mt-1">
+                    {Number(quantity || 0).toLocaleString()} kg @ KES {getBuyerUnitPrice(selectedListing?.grade)} / kg
+                  </Text>
+                </View>
+
+                {/* Action Button */}
+                <Pressable
+                  onPress={() =>
+                    selectedListing && createOrder(selectedListing)
+                  }
+                  disabled={creatingId === selectedListing?.id}
+                  className={`mt-5 rounded-2xl py-4 items-center ${
+                    creatingId === selectedListing?.id
+                      ? "bg-[#53866f]"
+                      : "bg-[#2A5C43]"
+                  }`}
+                >
+                  <Text className="text-white font-black text-base">
+                    {creatingId === selectedListing?.id
+                      ? "Placing Order..."
+                      : `Place Order — KES ${(
+                          Number(quantity || 0) * getBuyerUnitPrice(selectedListing?.grade)
+                        ).toLocaleString()}`}
+                  </Text>
+                </Pressable>
 
                 <Pressable
                   onPress={() => setSelectedListing(null)}

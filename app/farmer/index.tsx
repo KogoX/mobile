@@ -48,16 +48,24 @@ type ActivityItem =
   | { type: "payout"; data: PayoutItem; timestamp: number }
   | { type: "order"; data: OrderItem; timestamp: number };
 
+let _inMemoryFarmerYields: YieldItem[] | null = null;
+let _inMemoryFarmerPayouts: PayoutItem[] | null = null;
+let _inMemoryFarmerOrders: OrderItem[] | null = null;
+
 export default function FarmerDashboard() {
   const [name, setName] = useState("Farmer");
   const [uniqueId, setUniqueId] = useState("");
-  const [yields, setYields] = useState<YieldItem[]>([]);
-  const [payouts, setPayouts] = useState<PayoutItem[]>([]);
-  const [orders, setOrders] = useState<OrderItem[]>([]);
+  const [yields, setYields] = useState<YieldItem[]>(() => _inMemoryFarmerYields || []);
+  const [payouts, setPayouts] = useState<PayoutItem[]>(() => _inMemoryFarmerPayouts || []);
+  const [orders, setOrders] = useState<OrderItem[]>(() => _inMemoryFarmerOrders || []);
   const [loadError, setLoadError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
   const loadFromCache = useCallback(() => {
+    if (_inMemoryFarmerYields) setYields(_inMemoryFarmerYields);
+    if (_inMemoryFarmerPayouts) setPayouts(_inMemoryFarmerPayouts);
+    if (_inMemoryFarmerOrders) setOrders(_inMemoryFarmerOrders);
+
     getSessionUser().then((user) => {
       if (user) {
         setName(user.name || "Farmer");
@@ -75,26 +83,24 @@ export default function FarmerDashboard() {
       const oData = stores[2][1];
       if (yData)
         try {
-          setYields(JSON.parse(yData));
+          const parsed = JSON.parse(yData);
+          _inMemoryFarmerYields = parsed;
+          setYields(parsed);
         } catch {}
       if (pData)
         try {
-          setPayouts(JSON.parse(pData));
+          const parsed = JSON.parse(pData);
+          _inMemoryFarmerPayouts = parsed;
+          setPayouts(parsed);
         } catch {}
       if (oData)
         try {
-          setOrders(JSON.parse(oData));
+          const parsed = JSON.parse(oData);
+          _inMemoryFarmerOrders = parsed;
+          setOrders(parsed);
         } catch {}
     });
   }, []);
-
-  // Instant 0ms hydration from local storage on mount and tab focus
-  useFocusEffect(
-    useCallback(() => {
-      loadFromCache();
-      refresh();
-    }, [loadFromCache]),
-  );
 
   const refresh = useCallback(async (isManual = false) => {
     if (isManual) {
@@ -139,10 +145,18 @@ export default function FarmerDashboard() {
       })
       .catch(console.error);
 
-    await Promise.allSettled([p1, p2, p3, p4]);
-    setLoadError("");
-    setRefreshing(false);
+    return Promise.allSettled([p1, p2, p3, p4]).then(() => {
+      setRefreshing(false);
+    });
   }, []);
+
+  // Instant 0ms hydration from local storage on mount and tab focus
+  useFocusEffect(
+    useCallback(() => {
+      loadFromCache();
+      refresh();
+    }, [loadFromCache, refresh]),
+  );
 
   usePollingRefresh(refresh);
 

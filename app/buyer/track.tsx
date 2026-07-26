@@ -22,9 +22,11 @@ type Order = {
   created_at: string;
 };
 
+let _inMemoryTrackCache: Order[] | null = null;
+
 export default function BuyerTrack() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [orders, setOrders] = useState<Order[]>(() => _inMemoryTrackCache || []);
+  const [isLoading, setIsLoading] = useState(() => !_inMemoryTrackCache);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadFromCache = useCallback(() => {
@@ -33,8 +35,9 @@ export default function BuyerTrack() {
         try {
           const parsed: Order[] = JSON.parse(cached);
           const trackable = parsed.filter(
-            (o: Order) => o.status !== "Cancelled",
+            (o: Order) => String(o.status).toLowerCase() !== "cancelled",
           );
+          _inMemoryTrackCache = trackable;
           setOrders(trackable);
           setIsLoading(false);
         } catch {}
@@ -42,31 +45,45 @@ export default function BuyerTrack() {
     });
   }, []);
 
-  // Instant 0ms hydration on mount & tab focus
-  useFocusEffect(
-    useCallback(() => {
-      loadFromCache();
-      refresh();
-    }, [loadFromCache]),
-  );
-
   const refresh = useCallback(async (isManual = false) => {
     if (isManual) setRefreshing(true);
     try {
       if (isManual) clearApiCache();
-      const { data } = await fetchWithCache("/orders");
-      const trackable = data.filter((o: Order) => o.status !== "Cancelled");
-      setOrders(trackable);
-      AsyncStorage.setItem("buyer_orders_cache", JSON.stringify(data)).catch(
-        () => {},
-      );
+      const res = await api.get("/orders");
+      const data = res.data;
+      if (Array.isArray(data)) {
+        const trackable = data.filter(
+          (o: Order) => String(o.status).toLowerCase() !== "cancelled",
+        );
+        _inMemoryTrackCache = trackable;
+        setOrders(trackable);
+        AsyncStorage.setItem("buyer_orders_cache", JSON.stringify(data)).catch(
+          () => {},
+        );
+      }
     } catch (error) {
-      console.warn("Failed to load tracking orders:", error);
+      console.warn("Failed to load tracking orders via direct API, trying fallback:", error);
+      fetchWithCache("/orders").then((res) => {
+        if (res.data && Array.isArray(res.data)) {
+          const trackable = res.data.filter(
+            (o: Order) => String(o.status).toLowerCase() !== "cancelled",
+          );
+          setOrders(trackable);
+        }
+      }).catch(() => {});
     } finally {
       setIsLoading(false);
       setRefreshing(false);
     }
   }, []);
+
+  // Instant 0ms hydration on mount & tab focus + live API refresh
+  useFocusEffect(
+    useCallback(() => {
+      loadFromCache();
+      refresh();
+    }, [loadFromCache, refresh]),
+  );
 
   useFocusRefresh(refresh);
 
@@ -150,6 +167,34 @@ export default function BuyerTrack() {
                   </View>
                 </View>
 
+                {/* Live Shipment Location Banner */}
+                {order.tracking_location ? (
+                  <View className="bg-[#E7F5EE] border border-[#BDE3D0] rounded-xl p-3 mb-5 flex-row items-center gap-3">
+                    <View className="w-8 h-8 rounded-full bg-[#2A5C43] items-center justify-center">
+                      <MaterialIcons name="my-location" size={18} color="#ffffff" />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-[10px] uppercase font-black text-[#2A5C43]">
+                        Live Transit Location
+                      </Text>
+                      <Text className="text-sm font-bold text-gray-900 mt-0.5">
+                        📍 {order.tracking_location}
+                      </Text>
+                    </View>
+                  </View>
+                ) : null}
+
+                {order.estimated_delivery ? (
+                  <View className="bg-gray-50 border border-gray-200 rounded-xl p-3 mb-5 flex-row items-center justify-between">
+                    <Text className="text-xs text-gray-500 font-bold uppercase">
+                      Est. Arrival Date:
+                    </Text>
+                    <Text className="text-sm font-black text-[#2A5C43]">
+                      📅 {new Date(order.estimated_delivery).toLocaleDateString()}
+                    </Text>
+                  </View>
+                ) : null}
+
                 {(() => {
                   const isPaid =
                     order.status === "Paid" ||
@@ -187,7 +232,7 @@ export default function BuyerTrack() {
                               />
                             )}
                           </View>
-                          <View className="pt-0 flex-1">
+                          <View className="pt-0 flex-1 pb-4">
                             <Text
                               className={`font-black ${step.active ? "text-[#2A5C43]" : "text-gray-400"}`}
                             >
@@ -196,18 +241,8 @@ export default function BuyerTrack() {
                             {step.label === "In Transit" &&
                             step.active &&
                             order.tracking_location ? (
-                              <Text className="text-sm text-gray-500 mt-1">
-                                📍 {order.tracking_location}
-                              </Text>
-                            ) : null}
-                            {step.label === "In Transit" &&
-                            step.active &&
-                            order.estimated_delivery ? (
-                              <Text className="text-sm text-gray-500">
-                                Est. Delivery:{" "}
-                                {new Date(
-                                  order.estimated_delivery,
-                                ).toLocaleDateString()}
+                              <Text className="text-xs text-gray-500 font-bold mt-0.5">
+                                Current Stop: {order.tracking_location}
                               </Text>
                             ) : null}
                           </View>

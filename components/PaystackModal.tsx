@@ -2,6 +2,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Platform,
   Pressable,
@@ -38,12 +39,24 @@ export default function PaystackModal({
     setVerifying(true);
     try {
       if (reference) {
-        await api.post("/payments/verify", { reference });
+        const res = await api.post("/payments/verify", { reference });
+        if (res.data?.verified || res.data?.status === "Verified") {
+          onSuccess();
+          return;
+        }
       }
-      onSuccess();
-    } catch (err) {
-      console.warn("Auto verification check:", err);
-      onSuccess();
+      Alert.alert(
+        "Payment Pending or Unverified",
+        "We could not confirm payment completion yet. If you paid via M-Pesa or card, please tap 'Verify Payment'.",
+      );
+      onCancel();
+    } catch (err: any) {
+      console.warn("Paystack verification error:", err);
+      Alert.alert(
+        "Payment Failed",
+        err?.response?.data?.error || "Payment was not verified. Please try again.",
+      );
+      onCancel();
     } finally {
       setVerifying(false);
     }
@@ -54,10 +67,18 @@ export default function PaystackModal({
     if (
       url.includes("/payment-complete") ||
       url.includes("status=success") ||
+      url.includes("successful") ||
       url.includes("trxref=") ||
       url.includes("reference=")
     ) {
       handleComplete();
+    } else if (
+      url.includes("status=cancelled") ||
+      url.includes("status=failed") ||
+      url.includes("cancel")
+    ) {
+      Alert.alert("Payment Cancelled", "The payment session was cancelled. Please try again.");
+      onCancel();
     }
   }
 
@@ -72,12 +93,23 @@ export default function PaystackModal({
               Paystack Secure Checkout
             </Text>
           </View>
-          <Pressable
-            onPress={onCancel}
-            className="h-9 w-9 rounded-full bg-white/10 items-center justify-center"
-          >
-            <MaterialIcons name="close" size={20} color="#ffffff" />
-          </Pressable>
+          <View className="flex-row items-center gap-2">
+            <Pressable
+              onPress={handleComplete}
+              disabled={verifying}
+              className="px-3 py-1.5 rounded-lg bg-[#BDF264] items-center justify-center"
+            >
+              <Text className="text-[#125C3F] font-black text-xs">
+                {verifying ? "Verifying..." : "Verify Payment"}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={onCancel}
+              className="h-9 w-9 rounded-full bg-white/10 items-center justify-center ml-1"
+            >
+              <MaterialIcons name="close" size={20} color="#ffffff" />
+            </Pressable>
+          </View>
         </View>
 
         {/* Content Container */}

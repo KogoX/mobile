@@ -37,18 +37,25 @@ type Order = {
   created_at: string;
 };
 
+let _inMemoryOrdersCache: Order[] | null = null;
+
 export default function BuyerOrders() {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<Order[]>(() => _inMemoryOrdersCache || []);
   const [payingOrderId, setPayingOrderId] = useState<number | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => !_inMemoryOrdersCache);
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
 
   const loadFromCache = useCallback(() => {
+    if (_inMemoryOrdersCache) {
+      setOrders(_inMemoryOrdersCache);
+      setIsLoading(false);
+    }
     AsyncStorage.getItem("buyer_orders_cache").then((cached) => {
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
+          _inMemoryOrdersCache = parsed;
           setOrders(parsed);
           setIsLoading(false);
         } catch {}
@@ -68,13 +75,20 @@ export default function BuyerOrders() {
     if (isManual) setRefreshing(true);
     try {
       if (isManual) clearApiCache();
-      const { data } = await fetchWithCache("/orders");
-      setOrders(data);
-      AsyncStorage.setItem("buyer_orders_cache", JSON.stringify(data)).catch(
-        () => {},
-      );
+      const res = await api.get("/orders");
+      const data = res.data;
+      if (Array.isArray(data)) {
+        _inMemoryOrdersCache = data;
+        setOrders(data);
+        AsyncStorage.setItem("buyer_orders_cache", JSON.stringify(data)).catch(
+          () => {},
+        );
+      }
     } catch (error) {
-      console.warn("Failed to load orders:", error);
+      console.warn("Failed to load orders via direct API, trying cache fallback:", error);
+      fetchWithCache("/orders").then((res) => {
+        if (res.data) setOrders(res.data);
+      }).catch(() => {});
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -242,11 +256,33 @@ export default function BuyerOrders() {
         authUrl={paystackUrl}
         reference={paystackRef}
         onSuccess={async () => {
+          const currentPayingId = payingOrderId;
           setPaystackUrl(null);
           setPaystackRef(null);
           setPayingOrderId(null);
+
+          // Instant 0ms local state & storage update
+          if (currentPayingId) {
+            setOrders((prev) => {
+              const updated = prev.map((o) =>
+                o.id === currentPayingId
+                  ? { ...o, status: "Paid", payment_status: "Verified" }
+                  : o,
+              );
+              _inMemoryOrdersCache = updated;
+              AsyncStorage.setItem(
+                "buyer_orders_cache",
+                JSON.stringify(updated),
+              ).catch(() => {});
+              return updated;
+            });
+          }
+
+          Alert.alert(
+            "Payment Verified ✓",
+            "Thank you! Your payment has been received and verified successfully.",
+          );
           await refresh();
-          Alert.alert("Payment Received ✓", "Thank you! Your payment has been verified.");
         }}
         onCancel={() => {
           setPaystackUrl(null);

@@ -20,15 +20,25 @@ type Order = {
   created_at: string;
 };
 
+let _inMemoryInvoiceCache: Order[] | null = null;
+
 export default function BuyerInvoices() {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<Order[]>(() => _inMemoryInvoiceCache || []);
+  const [isLoading, setIsLoading] = useState(() => !_inMemoryInvoiceCache);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadFromCache = useCallback(() => {
+    if (_inMemoryInvoiceCache) {
+      setOrders(_inMemoryInvoiceCache);
+      setIsLoading(false);
+    }
     AsyncStorage.getItem("buyer_orders_cache").then((cached) => {
       if (cached) {
         try {
-          setOrders(JSON.parse(cached));
+          const parsed = JSON.parse(cached);
+          _inMemoryInvoiceCache = parsed;
+          setOrders(parsed);
+          setIsLoading(false);
         } catch {}
       }
     });
@@ -46,14 +56,19 @@ export default function BuyerInvoices() {
     if (isManual) setRefreshing(true);
     try {
       if (isManual) clearApiCache();
-      const { data } = await fetchWithCache("/orders");
-      setOrders(data);
-      AsyncStorage.setItem("buyer_orders_cache", JSON.stringify(data)).catch(
-        () => {},
-      );
+      const res = await api.get("/orders");
+      const data = res.data;
+      if (Array.isArray(data)) {
+        _inMemoryInvoiceCache = data;
+        setOrders(data);
+        AsyncStorage.setItem("buyer_orders_cache", JSON.stringify(data)).catch(
+          () => {},
+        );
+      }
     } catch (error) {
-      console.warn("Failed to load invoices:", error);
+      console.warn("Failed to load invoices via direct API:", error);
     } finally {
+      setIsLoading(false);
       setRefreshing(false);
     }
   }, []);
@@ -111,7 +126,38 @@ export default function BuyerInvoices() {
           />
         </View>
 
-        {orders.map((order) => {
+        {/* Skeleton Loading Cards */}
+        {isLoading && (
+          <View>
+            {[1, 2, 3].map((key) => (
+              <View
+                key={key}
+                className="bg-white rounded-2xl p-4 border border-gray-100 mb-3 opacity-70"
+              >
+                <View className="flex-row justify-between mb-3">
+                  <View className="h-6 w-1/3 bg-gray-200 rounded-full" />
+                  <View className="h-5 w-16 bg-gray-200 rounded-full" />
+                </View>
+                <View className="h-4 w-1/2 bg-gray-200 rounded-full mb-2" />
+                <View className="h-4 w-1/3 bg-gray-200 rounded-full mb-2" />
+                <View className="h-5 w-2/5 bg-gray-200 rounded-full mb-2" />
+                <View className="h-4 w-1/4 bg-gray-200 rounded-full" />
+              </View>
+            ))}
+          </View>
+        )}
+
+        {!isLoading && orders.length === 0 && (
+          <View className="items-center py-16">
+            <MaterialIcons name="receipt-long" size={48} color="#d1d5db" />
+            <Text className="text-gray-400 font-black text-lg mt-4">
+              No invoices generated
+            </Text>
+          </View>
+        )}
+
+        {!isLoading &&
+          orders.map((order) => {
           const paid =
             order.status === "Paid" || order.payment_status === "Verified";
           return (
