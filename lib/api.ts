@@ -25,7 +25,7 @@ console.log(`[api] backend base URL resolved to: ${normalizedBase}`)
 
 const api = axios.create({
   baseURL: `${normalizedBase.replace(/\/$/, "")}/api`,
-  timeout: 5000,
+  timeout: 15000,
 });
 
 let cachedToken: string | null | undefined;
@@ -62,33 +62,20 @@ api.interceptors.response.use(
 
 const memoryCache = new Map<string, { data: any; timestamp: number }>();
 
-/**
- * Ultra-fast Stale-While-Revalidate (SWR) cache helper.
- * Returns cached memory data in 0ms if available, and silently updates from backend in background.
- */
 export async function fetchWithCache(url: string) {
   const cached = memoryCache.get(url);
-
-  // Background revalidation
-  const fetchPromise = api
-    .get(url)
-    .then((res) => {
-      if (res && res.data) {
-        memoryCache.set(url, { data: res.data, timestamp: Date.now() });
-      }
-      return res;
-    })
-    .catch((err) => {
-      if (cached) return { data: cached.data };
-      throw err;
-    });
-
-  // Return cached data in 0ms if available
-  if (cached) {
-    return { data: cached.data };
+  try {
+    const res = await api.get(url);
+    if (res && res.data) {
+      memoryCache.set(url, { data: res.data, timestamp: Date.now() });
+    }
+    return res;
+  } catch (err: any) {
+    if (cached) {
+      return { data: cached.data };
+    }
+    throw err;
   }
-
-  return fetchPromise;
 }
 
 export function clearApiCache() {

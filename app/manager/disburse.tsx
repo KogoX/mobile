@@ -384,6 +384,24 @@ export default function ManagerDisburse() {
           />
         </View>
 
+        <View className="bg-[#E7F5EE] rounded-2xl p-4 mb-5 border border-[#BDE3D0]">
+          <Text className="text-[#2A5C43] font-black text-xs uppercase tracking-wide mb-2">
+            Live Market Rates & Cold-Chain Reserve Breakdown
+          </Text>
+          <View className="flex-row justify-between border-b border-[#2A5C43]/15 pb-2 mb-2">
+            <Text className="text-[#2A5C43] text-xs font-bold">Grade A (Export Hass):</Text>
+            <Text className="text-[#2A5C43] text-xs font-black">Buyer 160 | Farmer 115 | Cold-Chain 45 KES/kg</Text>
+          </View>
+          <View className="flex-row justify-between border-b border-[#2A5C43]/15 pb-2 mb-2">
+            <Text className="text-[#2A5C43] text-xs font-bold">Grade B (Processing):</Text>
+            <Text className="text-[#2A5C43] text-xs font-black">Buyer 110 | Farmer 75 | Cold-Chain 35 KES/kg</Text>
+          </View>
+          <View className="flex-row justify-between">
+            <Text className="text-[#2A5C43] text-xs font-bold">Grade C (Standard):</Text>
+            <Text className="text-[#2A5C43] text-xs font-black">Buyer 80 | Farmer 50 | Cold-Chain 30 KES/kg</Text>
+          </View>
+        </View>
+
         <View className="flex-row gap-2 mb-4">
           <Pressable
             onPress={() => setPayoutMode("single")}

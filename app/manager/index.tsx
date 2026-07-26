@@ -11,6 +11,8 @@ import {
   View,
   ActivityIndicator,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -358,23 +360,44 @@ export default function ManagerDashboard() {
     if (!trackingOrder) return;
     setUpdatingState({ id: trackingOrder.id, action: "tracking" });
     try {
-      await api.patch(`/orders/${trackingOrder.id}/status`, {
+      const { data } = await api.patch(`/orders/${trackingOrder.id}/status`, {
         status: trackingStatus || trackingOrder.status,
         trackingLocation,
         estimatedDelivery,
       });
-      setOrders((prev) =>
-        prev.map((o) =>
-          o.id === trackingOrder.id
-            ? {
-                ...o,
-                status: trackingStatus || o.status,
-                tracking_location: trackingLocation,
-                estimated_delivery: estimatedDelivery,
-              }
-            : o,
-        ),
+      clearApiCache();
+      const updatedOrders = orders.map((o) =>
+        o.id === trackingOrder.id
+          ? {
+              ...o,
+              status: trackingStatus || o.status,
+              tracking_location: trackingLocation,
+              estimated_delivery: estimatedDelivery,
+            }
+          : o,
       );
+      setOrders(updatedOrders);
+      AsyncStorage.setItem(
+        "manager_orders_cache",
+        JSON.stringify(updatedOrders),
+      ).catch(() => {});
+
+      // Sync directly to Buyer Orders Cache for 0ms cross-role update
+      if (data) {
+        AsyncStorage.getItem("buyer_orders_cache")
+          .then((cached) => {
+            const bOrders = cached ? JSON.parse(cached) : [];
+            const updatedBOrders = bOrders.map((o: any) =>
+              String(o.id) === String(trackingOrder.id) ? { ...o, ...data } : o,
+            );
+            AsyncStorage.setItem(
+              "buyer_orders_cache",
+              JSON.stringify(updatedBOrders),
+            ).catch(() => {});
+          })
+          .catch(() => {});
+      }
+
       showToast("Tracking updated successfully");
       setTrackingOrder(null);
     } catch (error: any) {
@@ -648,79 +671,144 @@ export default function ManagerDashboard() {
 
       {/* Tracking Update Modal */}
       {trackingOrder && (
-        <View className="absolute inset-0 bg-black/50 justify-end z-50">
-          <View className="bg-white rounded-t-3xl p-6 pb-12">
-            <Text className="text-2xl font-black text-[#2A5C43] mb-1">
-              Update Tracking
-            </Text>
-            <Text className="text-gray-500 mb-6">
-              Order #{shortHash(trackingOrder.id)}
-            </Text>
+        <View className="absolute inset-0 bg-black/60 justify-end z-50">
+          <Pressable
+            className="absolute inset-0"
+            onPress={() => setTrackingOrder(null)}
+          />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            className="max-h-[90%]"
+          >
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              className="bg-white rounded-t-3xl p-6 pb-8"
+            >
+              <Text className="text-2xl font-black text-[#2A5C43] mb-1">
+                Update Tracking
+              </Text>
+              <Text className="text-gray-500 mb-5">
+                Order #{shortHash(trackingOrder.id)}
+              </Text>
 
-            <Text className="font-bold text-gray-700 mb-2">Status</Text>
-            <View className="flex-row flex-wrap gap-2 mb-4">
-              {[
-                "Paid",
-                "Picked Up",
-                "In Transit",
-                "Ready for Pickup",
-                "Fulfilled",
-              ].map((opt) => (
-                <Pressable
-                  key={opt}
-                  className={`px-4 py-2 border rounded-xl ${trackingStatus === opt ? "bg-[#2A5C43] border-[#2A5C43]" : "bg-white border-gray-300"}`}
-                  onPress={() => setTrackingStatus(opt)}
-                >
-                  <Text
-                    className={`font-bold ${trackingStatus === opt ? "text-white" : "text-gray-600"}`}
+              <Text className="font-bold text-gray-700 mb-2">Status</Text>
+              <View className="flex-row flex-wrap gap-2 mb-4">
+                {[
+                  "Paid",
+                  "Picked Up",
+                  "In Transit",
+                  "Ready for Pickup",
+                  "Fulfilled",
+                ].map((opt) => (
+                  <Pressable
+                    key={opt}
+                    className={`px-4 py-2 border rounded-xl ${trackingStatus === opt ? "bg-[#2A5C43] border-[#2A5C43]" : "bg-white border-gray-300"}`}
+                    onPress={() => setTrackingStatus(opt)}
                   >
-                    {opt}
+                    <Text
+                      className={`font-bold ${trackingStatus === opt ? "text-white" : "text-gray-600"}`}
+                    >
+                      {opt}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <Text className="font-bold text-gray-700 mb-2">
+                Current Location
+              </Text>
+              <View className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 mb-4">
+                <TextInput
+                  value={trackingLocation}
+                  onChangeText={setTrackingLocation}
+                  placeholder="e.g. Nairobi Central Warehouse"
+                  style={{ outlineStyle: "none" } as never}
+                  className="text-gray-800 font-medium"
+                />
+              </View>
+
+              <Text className="font-bold text-gray-700 mb-2">
+                Est. Delivery Date
+              </Text>
+
+              {/* Date Helper Quick-Pick Chips */}
+              <View className="flex-row flex-wrap gap-1.5 mb-2">
+                {[
+                  { label: "Today", days: 0 },
+                  { label: "+3 Days", days: 3 },
+                  { label: "+7 Days", days: 7 },
+                  { label: "+14 Days", days: 14 },
+                  { label: "+30 Days", days: 30 },
+                ].map((chip) => {
+                  const targetDate = new Date();
+                  targetDate.setDate(targetDate.getDate() + chip.days);
+                  const formatted = targetDate.toISOString().split("T")[0];
+                  const isSelected = estimatedDelivery === formatted;
+                  return (
+                    <Pressable
+                      key={chip.label}
+                      onPress={() => setEstimatedDelivery(formatted)}
+                      className={`px-3 py-1.5 rounded-lg border ${
+                        isSelected
+                          ? "bg-[#2A5C43] border-[#2A5C43]"
+                          : "bg-gray-100 border-gray-200"
+                      }`}
+                    >
+                      <Text
+                        className={`text-xs font-bold ${
+                          isSelected ? "text-white" : "text-gray-600"
+                        }`}
+                      >
+                        {chip.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <View className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 mb-6">
+                <TextInput
+                  value={estimatedDelivery}
+                  onChangeText={setEstimatedDelivery}
+                  placeholder="YYYY-MM-DD"
+                  style={{ outlineStyle: "none" } as never}
+                  className="text-gray-800 font-medium"
+                />
+              </View>
+
+              <View className="flex-row gap-3 pb-8">
+                <Pressable
+                  className="flex-1 py-4 bg-gray-200 rounded-xl items-center"
+                  onPress={() => setTrackingOrder(null)}
+                >
+                  <Text className="text-gray-600 font-black">Cancel</Text>
+                </Pressable>
+                <Pressable
+                  className={`flex-1 py-4 rounded-xl items-center flex-row justify-center ${
+                    updatingState?.action === "tracking"
+                      ? "bg-[#52846e]"
+                      : "bg-[#2A5C43]"
+                  }`}
+                  disabled={updatingState?.action === "tracking"}
+                  onPress={handleUpdateTracking}
+                >
+                  {updatingState?.action === "tracking" ? (
+                    <ActivityIndicator
+                      size="small"
+                      color="#ffffff"
+                      style={{ marginRight: 8 }}
+                    />
+                  ) : null}
+                  <Text className="text-white font-black">
+                    {updatingState?.action === "tracking"
+                      ? "Saving..."
+                      : "Save Updates"}
                   </Text>
                 </Pressable>
-              ))}
-            </View>
-
-            <Text className="font-bold text-gray-700 mb-2">
-              Current Location
-            </Text>
-            <View className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 mb-4">
-              <TextInput
-                value={trackingLocation}
-                onChangeText={setTrackingLocation}
-                placeholder="e.g. Nairobi Warehouse"
-                style={{ outlineStyle: "none" } as never}
-                className="text-gray-800"
-              />
-            </View>
-
-            <Text className="font-bold text-gray-700 mb-2">
-              Est. Delivery Date
-            </Text>
-            <View className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 mb-6">
-              <TextInput
-                value={estimatedDelivery}
-                onChangeText={setEstimatedDelivery}
-                placeholder="YYYY-MM-DD"
-                style={{ outlineStyle: "none" } as never}
-                className="text-gray-800"
-              />
-            </View>
-
-            <View className="flex-row gap-3">
-              <Pressable
-                className="flex-1 py-4 bg-gray-200 rounded-xl items-center"
-                onPress={() => setTrackingOrder(null)}
-              >
-                <Text className="text-gray-600 font-black">Cancel</Text>
-              </Pressable>
-              <Pressable
-                className="flex-1 py-4 bg-[#2A5C43] rounded-xl items-center"
-                onPress={handleUpdateTracking}
-              >
-                <Text className="text-white font-black">Save Updates</Text>
-              </Pressable>
-            </View>
-          </View>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </View>
       )}
     </SafeAreaView>

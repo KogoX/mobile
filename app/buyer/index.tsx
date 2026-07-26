@@ -39,6 +39,13 @@ type Listing = {
 const listingCountKey = "buyerListingCount";
 const screenWidth = Dimensions.get("window").width;
 
+export function getBuyerUnitPrice(grade?: string): number {
+  const g = (grade || "A").toUpperCase().replace("GRADE", "").trim();
+  if (g === "B") return 110;
+  if (g === "C") return 80;
+  return 160; // Grade A default
+}
+
 export default function BuyerDashboard() {
   const router = useRouter();
   const [listings, setListings] = useState<Listing[]>([]);
@@ -60,7 +67,10 @@ export default function BuyerDashboard() {
       listings.filter(
         (item) =>
           ["Approved", "Scheduled", "Exported"].includes(item.status) &&
-          (grade === "All Grades" || item.grade === grade),
+          (grade === "All Grades" ||
+            grade === "All" ||
+            item.grade === grade ||
+            `Grade ${item.grade}` === grade),
       ),
     [grade, listings],
   );
@@ -171,9 +181,10 @@ export default function BuyerDashboard() {
 
     try {
       setCreatingId(listing.id);
+      const unitRate = getBuyerUnitPrice(listing.grade);
       const res = await api.post("/orders", {
         quantity: requested,
-        unitPrice: 120,
+        unitPrice: unitRate,
         produce: listing.variety,
         yield_id: listing.id,
       });
@@ -238,7 +249,7 @@ export default function BuyerDashboard() {
   return (
     <SafeAreaView className="flex-1 bg-[#FCF9F8]">
       <FlatList
-        data={!isLoading ? approvedListings : []}
+        data={approvedListings}
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 30 }}
         keyExtractor={(item) => item.id}
@@ -289,7 +300,7 @@ export default function BuyerDashboard() {
                 </View>
                 <View className="flex-1 bg-white/10 rounded-2xl p-3">
                   <Text className="text-[#BDF264] text-2xl font-black">
-                    1,200
+                    {getBuyerUnitPrice(grade).toLocaleString()}
                   </Text>
                   <Text className="text-[#D7F3E5] text-xs font-bold mt-1 uppercase">
                     KES / kg
@@ -685,13 +696,13 @@ export default function BuyerDashboard() {
                   <DetailRow
                     icon="payments"
                     label="Unit Price"
-                    value="KES 1,200 / kg"
+                    value={`KES ${getBuyerUnitPrice(selectedListing?.grade).toLocaleString()} / kg`}
                   />
                   <DetailRow
                     icon="shopping-basket"
                     label="Your Order"
                     value={`${Number(quantity || 0).toLocaleString()} kg = KES ${(
-                      Number(quantity || 0) * 1200
+                      Number(quantity || 0) * getBuyerUnitPrice(selectedListing?.grade)
                     ).toLocaleString()}`}
                   />
                   <DetailRow
@@ -742,7 +753,9 @@ export default function BuyerDashboard() {
                     <Text className="text-white font-black text-base">
                       {creatingId === selectedListing?.id
                         ? "Placing Order..."
-                        : `Place Order — KES ${(Number(quantity || 0) * 1200).toLocaleString()}`}
+                        : `Place Order — KES ${(
+                            Number(quantity || 0) * getBuyerUnitPrice(selectedListing?.grade)
+                          ).toLocaleString()}`}
                     </Text>
                   </Pressable>
                 )}

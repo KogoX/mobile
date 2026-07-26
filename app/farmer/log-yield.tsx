@@ -16,7 +16,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import api, { clearApiCache } from "../../lib/api";
 
-const MAX_PHOTOS = 5;
+import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
+
+const MAX_PHOTOS = 10;
+const MAX_BATCH_BYTES = 8 * 1024 * 1024; // 8MB Limit per yield log
 
 export default function LogYield() {
   const [season, setSeason] = useState("Main Season 2026");
@@ -30,10 +33,27 @@ export default function LogYield() {
   });
   const [photos, setPhotos] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [compressing, setCompressing] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
+
+  async function compressImage(uri: string): Promise<string> {
+    try {
+      const result = await manipulateAsync(
+        uri,
+        [{ resize: { width: 1024 } }],
+        { compress: 0.5, format: SaveFormat.JPEG, base64: true }
+      );
+      if (result.base64) {
+        return `data:image/jpeg;base64,${result.base64}`;
+      }
+      return uri;
+    } catch {
+      return uri;
+    }
+  }
 
   async function capturePhoto(useCamera: boolean) {
     if (photos.length >= MAX_PHOTOS) {
@@ -68,32 +88,52 @@ export default function LogYield() {
     let result: ImagePicker.ImagePickerResult;
     if (useCamera) {
       result = await ImagePicker.launchCameraAsync({
-        base64: true,
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.45,
+        quality: 0.6,
         cameraType: ImagePicker.CameraType.back,
       });
     } else {
       result = await ImagePicker.launchImageLibraryAsync({
         allowsMultipleSelection: true,
-        base64: true,
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.45,
+        quality: 0.6,
         selectionLimit: MAX_PHOTOS - photos.length,
       });
     }
 
     if (result.canceled) return;
 
-    const selected = result.assets
-      .slice(0, MAX_PHOTOS - photos.length)
-      .map((asset) =>
-        asset.base64
-          ? `data:${asset.mimeType || "image/jpeg"};base64,${asset.base64}`
-          : asset.uri,
-      );
+    setCompressing(true);
+    try {
+      const compressedBatch: string[] = [];
+      for (const asset of result.assets.slice(0, MAX_PHOTOS - photos.length)) {
+        const compressedData = await compressImage(asset.uri);
+        compressedBatch.push(compressedData);
+      }
 
-    setPhotos((current) => [...current, ...selected].slice(0, MAX_PHOTOS));
+      const nextPhotos = [...photos, ...compressedBatch].slice(0, MAX_PHOTOS);
+      const totalSize = nextPhotos.reduce((acc, p) => acc + p.length, 0);
+
+      if (totalSize > MAX_BATCH_BYTES) {
+        Alert.alert(
+          "Batch size limit",
+          "Total photos exceed 8MB limit. Some photos were omitted to stay under 8MB.",
+        );
+        let trimmed: string[] = [];
+        let currentBytes = 0;
+        for (const p of nextPhotos) {
+          if (currentBytes + p.length <= MAX_BATCH_BYTES) {
+            trimmed.push(p);
+            currentBytes += p.length;
+          }
+        }
+        setPhotos(trimmed);
+      } else {
+        setPhotos(nextPhotos);
+      }
+    } finally {
+      setCompressing(false);
+    }
   }
 
   const handleSubmit = async () => {
@@ -266,11 +306,48 @@ export default function LogYield() {
             <Text className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2 ml-1">
               Harvest Date
             </Text>
+
+            {/* Date Helper Quick-Pick Chips */}
+            <View className="flex-row flex-wrap gap-1.5 mb-2">
+              {[
+                { label: "Today", days: 0 },
+                { label: "Yesterday", days: -1 },
+                { label: "2 Days Ago", days: -2 },
+                { label: "3 Days Ago", days: -3 },
+              ].map((chip) => {
+                const targetDate = new Date();
+                targetDate.setDate(targetDate.getDate() + chip.days);
+                const day = String(targetDate.getDate()).padStart(2, "0");
+                const month = String(targetDate.getMonth() + 1).padStart(2, "0");
+                const formatted = `${day}/${month}/${targetDate.getFullYear()}`;
+                const isSelected = date === formatted;
+                return (
+                  <Pressable
+                    key={chip.label}
+                    onPress={() => setDate(formatted)}
+                    className={`px-3 py-1.5 rounded-lg border ${
+                      isSelected
+                        ? "bg-[#2A5C43] border-[#2A5C43]"
+                        : "bg-gray-100 border-gray-200"
+                    }`}
+                  >
+                    <Text
+                      className={`text-xs font-bold ${
+                        isSelected ? "text-white" : "text-gray-600"
+                      }`}
+                    >
+                      {chip.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
             <TextInput
               className="min-h-[48px] bg-[#F9F9F9] border border-gray-200 rounded-xl px-4 text-gray-800 font-bold"
               value={date}
               onChangeText={setDate}
-              placeholder="dd/mm/yyyy"
+              placeholder="DD/MM/YYYY"
             />
           </View>
 
