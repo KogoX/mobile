@@ -71,6 +71,15 @@ api.interceptors.response.use(
         )
       }
     }
+    if (error.response && error.response.status === 401) {
+      // Clear in-memory token to force re-auth
+      cachedToken = null;
+      // Note: Full session clear and routing to login should ideally 
+      // be handled at the root app level or context, but clearing 
+      // the token here prevents looping requests.
+      AsyncStorage.removeItem("token").catch(() => {});
+    }
+
     return Promise.reject(error)
   }
 )

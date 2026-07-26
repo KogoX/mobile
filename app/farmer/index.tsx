@@ -1,146 +1,214 @@
-import { MaterialIcons } from "@expo/vector-icons"
-import { useCallback, useMemo, useState } from "react"
-import { ScrollView, Text, View } from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
+import { MaterialIcons } from "@expo/vector-icons";
+import { RefreshControl, ScrollView, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import api, { fetchWithCache } from "../../lib/api"
-import { usePollingRefresh } from "../../lib/polling"
+import api, { clearApiCache, fetchWithCache } from "../../lib/api";
+import { usePollingRefresh } from "../../lib/polling";
 
 type YieldItem = {
-  id: number
-  crop_season: string
-  variety: string
-  quantity: string
-  grade: string
-  created_at: string
-}
+  id: number;
+  crop_season: string;
+  variety: string;
+  quantity: string;
+  grade: string;
+  created_at: string;
+};
 
 type PayoutItem = {
-  id: number
-  order_id: number | null
-  amount: string
-  method: string
-  status: string
-  reference: string
-  notes: string | null
-  created_at: string
-}
+  id: number;
+  order_id: number | null;
+  amount: string;
+  method: string;
+  status: string;
+  reference: string;
+  notes: string | null;
+  created_at: string;
+};
 
 type OrderItem = {
-  id: number
-  produce: string
-  quantity: string
-  total_amount: string
-  status: string
-  created_at: string
-}
+  id: number;
+  produce: string;
+  quantity: string;
+  total_amount: string;
+  status: string;
+  created_at: string;
+};
 
 type FarmerProfile = {
-  name?: string | null
-  unique_id?: string | null
-}
+  name?: string | null;
+  unique_id?: string | null;
+};
 
 type ActivityItem =
   | { type: "yield"; data: YieldItem; timestamp: number }
   | { type: "payout"; data: PayoutItem; timestamp: number }
-  | { type: "order"; data: OrderItem; timestamp: number }
+  | { type: "order"; data: OrderItem; timestamp: number };
 
 export default function FarmerDashboard() {
-  const [name, setName] = useState("Farmer")
-  const [uniqueId, setUniqueId] = useState("")
-  const [yields, setYields] = useState<YieldItem[]>([])
-  const [payouts, setPayouts] = useState<PayoutItem[]>([])
-  const [orders, setOrders] = useState<OrderItem[]>([])
-  const [loadError, setLoadError] = useState("")
+  const [name, setName] = useState("Farmer");
+  const [uniqueId, setUniqueId] = useState("");
+  const [yields, setYields] = useState<YieldItem[]>([]);
+  const [payouts, setPayouts] = useState<PayoutItem[]>([]);
+  const [orders, setOrders] = useState<OrderItem[]>([]);
+  const [loadError, setLoadError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (isManual = false) => {
+    if (isManual) {
+      setRefreshing(true);
+      clearApiCache();
+    }
     // Fetch independently so cached items render instantly
-    fetchWithCache("/auth/me").then(res => {
-      const profile = res.data as FarmerProfile
-      setName(profile.name || "Farmer")
-      setUniqueId(profile.unique_id || "")
-    }).catch(console.error)
+    const p1 = fetchWithCache("/auth/me")
+      .then((res) => {
+        const profile = res.data as FarmerProfile;
+        setName(profile.name || "Farmer");
+        setUniqueId(profile.unique_id || "");
+      })
+      .catch(console.error);
 
-    fetchWithCache("/yields").then(res => setYields(res.data)).catch(console.error)
-    fetchWithCache("/payouts").then(res => setPayouts(res.data)).catch(console.error)
-    fetchWithCache("/orders").then(res => setOrders(res.data)).catch(console.error)
-    
-    setLoadError("")
-  }, [])
+    const p2 = fetchWithCache("/yields")
+      .then((res) => setYields(res.data))
+      .catch(console.error);
+    const p3 = fetchWithCache("/payouts")
+      .then((res) => setPayouts(res.data))
+      .catch(console.error);
+    const p4 = fetchWithCache("/orders")
+      .then((res) => setOrders(res.data))
+      .catch(console.error);
 
-  usePollingRefresh(refresh)
+    await Promise.allSettled([p1, p2, p3, p4]);
+    setLoadError("");
+    setRefreshing(false);
+  }, []);
+
+  usePollingRefresh(refresh);
+
+  const onRefresh = useCallback(() => {
+    refresh(true);
+  }, [refresh]);
 
   const totalYield = useMemo(
     () => yields.reduce((sum, entry) => sum + Number(entry.quantity || 0), 0),
-    [yields]
-  )
+    [yields],
+  );
   const totalPaid = useMemo(
     () =>
       payouts
         .filter((item) => item.status === "Paid")
         .reduce((sum, item) => sum + Number(item.amount || 0), 0),
-    [payouts]
-  )
+    [payouts],
+  );
   const pendingPayments = useMemo(
     () =>
       payouts
         .filter((item) => item.status !== "Paid")
         .reduce((sum, item) => sum + Number(item.amount || 0), 0),
-    [payouts]
-  )
+    [payouts],
+  );
   const marketDemand = useMemo(
     () => orders.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
-    [orders]
-  )
+    [orders],
+  );
   const gradeTotals = useMemo(
     () =>
       yields.reduce<Record<string, number>>((totals, entry) => {
-        totals[entry.grade] = (totals[entry.grade] || 0) + Number(entry.quantity || 0)
-        return totals
+        totals[entry.grade] =
+          (totals[entry.grade] || 0) + Number(entry.quantity || 0);
+        return totals;
       }, {}),
-    [yields]
-  )
+    [yields],
+  );
 
-  const latestYield = yields[0]
-  const strongestGrade = Object.entries(gradeTotals).sort((a, b) => b[1] - a[1])[0]
+  const latestYield = yields[0];
+  const strongestGrade = Object.entries(gradeTotals).sort(
+    (a, b) => b[1] - a[1],
+  )[0];
 
   const recentActivity = useMemo(() => {
     const activity: ActivityItem[] = [
-      ...yields.map((y) => ({ type: "yield" as const, data: y, timestamp: new Date(y.created_at).getTime() })),
-      ...payouts.map((p) => ({ type: "payout" as const, data: p, timestamp: new Date(p.created_at).getTime() })),
-      ...orders.map((o) => ({ type: "order" as const, data: o, timestamp: new Date(o.created_at).getTime() })),
-    ]
-    return activity.sort((a, b) => b.timestamp - a.timestamp).slice(0, 15)
-  }, [yields, payouts, orders])
+      ...yields.map((y) => ({
+        type: "yield" as const,
+        data: y,
+        timestamp: new Date(y.created_at).getTime(),
+      })),
+      ...payouts.map((p) => ({
+        type: "payout" as const,
+        data: p,
+        timestamp: new Date(p.created_at).getTime(),
+      })),
+      ...orders.map((o) => ({
+        type: "order" as const,
+        data: o,
+        timestamp: new Date(o.created_at).getTime(),
+      })),
+    ];
+    return activity.sort((a, b) => b.timestamp - a.timestamp).slice(0, 15);
+  }, [yields, payouts, orders]);
 
   return (
     <SafeAreaView className="flex-1 bg-[#FCF9F8]">
-      <ScrollView className="flex-1 p-5" contentContainerStyle={{ paddingBottom: 30 }}>
-        <Text className="text-3xl font-black text-[#2A5C43]">Good morning, {name}</Text>
+      <ScrollView
+        className="flex-1 p-5"
+        contentContainerStyle={{ paddingBottom: 30 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#2A5C43"]}
+            tintColor="#2A5C43"
+          />
+        }
+      >
+        <Text className="text-3xl font-black text-[#2A5C43]">
+          Good morning, {name}
+        </Text>
         {uniqueId ? (
-          <Text className="text-gray-500 font-bold mt-1">Farmer Code: {uniqueId}</Text>
+          <Text className="text-gray-500 font-bold mt-1">
+            Farmer Code: {uniqueId}
+          </Text>
         ) : null}
         <Text className="text-gray-500 mt-1 mb-5">
           Your farm activity, payouts and market demand from live records.
         </Text>
         {loadError ? (
           <View className="bg-amber-50 rounded-xl border border-amber-200 px-4 py-3 mb-4">
-            <Text className="text-amber-800 font-bold text-sm">{loadError}</Text>
+            <Text className="text-amber-800 font-bold text-sm">
+              {loadError}
+            </Text>
           </View>
         ) : null}
 
         <View className="flex-row gap-3 mb-3">
-          <SummaryCard icon="eco" label="Total Yield" value={`${totalYield.toLocaleString()} kg`} />
-          <SummaryCard icon="verified" label="Paid Out" value={`KES ${totalPaid.toLocaleString()}`} />
+          <SummaryCard
+            icon="eco"
+            label="Total Yield"
+            value={`${totalYield.toLocaleString()} kg`}
+          />
+          <SummaryCard
+            icon="verified"
+            label="Paid Out"
+            value={`KES ${totalPaid.toLocaleString()}`}
+          />
         </View>
         <View className="flex-row gap-3 mb-4">
-          <SummaryCard icon="hourglass-top" label="Pending" value={`KES ${pendingPayments.toLocaleString()}`} />
-          <SummaryCard icon="shopping-cart" label="Demand" value={`${marketDemand.toLocaleString()} kg`} />
+          <SummaryCard
+            icon="hourglass-top"
+            label="Pending"
+            value={`KES ${pendingPayments.toLocaleString()}`}
+          />
+          <SummaryCard
+            icon="shopping-cart"
+            label="Demand"
+            value={`${marketDemand.toLocaleString()} kg`}
+          />
         </View>
 
         <View className="bg-[#125C3F] rounded-2xl p-4 mb-4">
           <View className="flex-row items-center justify-between">
-            <Text className="text-white text-lg font-black">Harvest Snapshot</Text>
+            <Text className="text-white text-lg font-black">
+              Harvest Snapshot
+            </Text>
             <MaterialIcons name="insights" size={22} color="#D7F3E5" />
           </View>
           <Text className="text-[#D7F3E5] mt-2">
@@ -151,24 +219,31 @@ export default function FarmerDashboard() {
           <View className="flex-row gap-2 mt-4">
             {["A", "B", "C"].map((grade) => (
               <View key={grade} className="flex-1 bg-white/10 rounded-xl p-3">
-                <Text className="text-[#D7F3E5] text-[10px] font-black uppercase">Grade {grade}</Text>
-                <Text className="text-white font-black mt-1">{(gradeTotals[grade] || 0).toLocaleString()} kg</Text>
+                <Text className="text-[#D7F3E5] text-[10px] font-black uppercase">
+                  Grade {grade}
+                </Text>
+                <Text className="text-white font-black mt-1">
+                  {(gradeTotals[grade] || 0).toLocaleString()} kg
+                </Text>
               </View>
             ))}
           </View>
           {strongestGrade ? (
             <Text className="text-white mt-3 font-bold">
-              Top grade: {strongestGrade[0]} with {strongestGrade[1].toLocaleString()} kg
+              Top grade: {strongestGrade[0]} with{" "}
+              {strongestGrade[1].toLocaleString()} kg
             </Text>
           ) : null}
         </View>
 
-        <Text className="text-xl font-black text-[#2A5C43] mb-3">Recent Activity</Text>
+        <Text className="text-xl font-black text-[#2A5C43] mb-3">
+          Recent Activity
+        </Text>
         {recentActivity.length > 0 ? (
           recentActivity.map((item, idx) => {
-            const isLast = idx === recentActivity.length - 1
+            const isLast = idx === recentActivity.length - 1;
             if (item.type === "yield") {
-              const y = item.data
+              const y = item.data;
               return (
                 <ActivityRow
                   key={`y-${y.id}`}
@@ -180,9 +255,9 @@ export default function FarmerDashboard() {
                   time={new Date(y.created_at).toLocaleString()}
                   isLast={isLast}
                 />
-              )
+              );
             } else if (item.type === "order") {
-              const o = item.data
+              const o = item.data;
               return (
                 <ActivityRow
                   key={`o-${o.id}`}
@@ -194,9 +269,9 @@ export default function FarmerDashboard() {
                   time={new Date(o.created_at).toLocaleString()}
                   isLast={isLast}
                 />
-              )
+              );
             } else {
-              const p = item.data
+              const p = item.data;
               return (
                 <ActivityRow
                   key={`p-${p.id}`}
@@ -204,37 +279,42 @@ export default function FarmerDashboard() {
                   color="#059669"
                   bg="#d1fae5"
                   title={`Payout ${p.status}: KES ${Number(p.amount).toLocaleString()}`}
-                  subtitle={`Method: ${p.method} ${p.order_id ? `• Order #${p.order_id}` : ''}`}
+                  subtitle={`Method: ${p.method} ${p.order_id ? `• Order #${p.order_id}` : ""}`}
                   time={new Date(p.created_at).toLocaleString()}
                   isLast={isLast}
                 />
-              )
+              );
             }
           })
         ) : (
-          <EmptyState title="No activity yet" message="When you log yields, receive orders, or get payouts, they will appear here." />
+          <EmptyState
+            title="No activity yet"
+            message="When you log yields, receive orders, or get payouts, they will appear here."
+          />
         )}
       </ScrollView>
     </SafeAreaView>
-  )
+  );
 }
 
 function SummaryCard({
   icon,
   label,
-  value
+  value,
 }: {
-  icon: keyof typeof MaterialIcons.glyphMap
-  label: string
-  value: string
+  icon: keyof typeof MaterialIcons.glyphMap;
+  label: string;
+  value: string;
 }) {
   return (
     <View className="flex-1 bg-white rounded-2xl p-4 border border-gray-200 min-h-[116px]">
       <MaterialIcons name={icon} size={21} color="#2A5C43" />
-      <Text className="text-[10px] text-gray-500 uppercase font-black mt-3">{label}</Text>
+      <Text className="text-[10px] text-gray-500 uppercase font-black mt-3">
+        {label}
+      </Text>
       <Text className="text-[#2A5C43] text-lg font-black mt-1">{value}</Text>
     </View>
-  )
+  );
 }
 
 function EmptyState({ title, message }: { title: string; message: string }) {
@@ -243,7 +323,7 @@ function EmptyState({ title, message }: { title: string; message: string }) {
       <Text className="text-[#2A5C43] font-black">{title}</Text>
       <Text className="text-gray-500 mt-1">{message}</Text>
     </View>
-  )
+  );
 }
 
 function ActivityRow({
@@ -253,29 +333,36 @@ function ActivityRow({
   title,
   subtitle,
   time,
-  isLast
+  isLast,
 }: {
-  icon: keyof typeof MaterialIcons.glyphMap
-  color: string
-  bg: string
-  title: string
-  subtitle: string
-  time: string
-  isLast?: boolean
+  icon: keyof typeof MaterialIcons.glyphMap;
+  color: string;
+  bg: string;
+  title: string;
+  subtitle: string;
+  time: string;
+  isLast?: boolean;
 }) {
   return (
     <View className="flex-row">
       <View className="items-center mr-3">
-        <View className="w-10 h-10 rounded-full items-center justify-center" style={{ backgroundColor: bg }}>
+        <View
+          className="w-10 h-10 rounded-full items-center justify-center"
+          style={{ backgroundColor: bg }}
+        >
           <MaterialIcons name={icon} size={20} color={color} />
         </View>
         {!isLast && <View className="w-px flex-1 bg-gray-200 my-1" />}
       </View>
       <View className="flex-1 pb-4">
-        <Text className="text-gray-900 font-bold text-sm leading-5">{title}</Text>
+        <Text className="text-gray-900 font-bold text-sm leading-5">
+          {title}
+        </Text>
         <Text className="text-gray-500 text-xs mt-0.5">{subtitle}</Text>
-        <Text className="text-gray-400 text-[10px] uppercase font-bold mt-1">{time}</Text>
+        <Text className="text-gray-400 text-[10px] uppercase font-bold mt-1">
+          {time}
+        </Text>
       </View>
     </View>
-  )
+  );
 }
