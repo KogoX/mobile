@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useState } from "react";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
@@ -8,6 +9,7 @@ import {
   Pressable,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -28,6 +30,10 @@ export default function LogYield() {
   });
   const [photos, setPhotos] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   async function capturePhoto(useCamera: boolean) {
     if (photos.length >= MAX_PHOTOS) {
@@ -92,13 +98,17 @@ export default function LogYield() {
 
   const handleSubmit = async () => {
     if (!quantity) {
-      Alert.alert("Missing quantity", "Please enter a yield quantity.");
+      setStatusMessage({
+        type: "error",
+        text: "Please enter a valid harvest quantity in kilograms.",
+      });
       return;
     }
 
     try {
       setLoading(true);
-      await api.post("/yields", {
+      setStatusMessage(null);
+      const res = await api.post("/yields", {
         cropSeason: season,
         quantity: Number(quantity),
         grade,
@@ -106,14 +116,38 @@ export default function LogYield() {
         photos,
       });
       clearApiCache();
-      Alert.alert("Saved", "Yield logged successfully.");
+
+      // Prepend created yield to local storage caches so Farmer and Manager update instantly (0ms)
+      try {
+        const cached = await AsyncStorage.getItem("farmer_yields_cache");
+        const list = cached ? JSON.parse(cached) : [];
+        await AsyncStorage.setItem(
+          "farmer_yields_cache",
+          JSON.stringify([res.data, ...list]),
+        );
+
+        const mCached = await AsyncStorage.getItem("manager_yields_cache");
+        if (mCached) {
+          const mList = JSON.parse(mCached);
+          await AsyncStorage.setItem(
+            "manager_yields_cache",
+            JSON.stringify([res.data, ...mList]),
+          );
+        }
+      } catch (e) {}
+
+      setStatusMessage({
+        type: "success",
+        text: `Logged ${quantity} kg (Grade ${grade}) successfully! Your dashboard and history have been updated.`,
+      });
       setQuantity("");
       setPhotos([]);
     } catch (err: any) {
-      Alert.alert(
-        "Failed to log yield",
-        err?.response?.data?.error || err.message,
-      );
+      const msg =
+        err?.response?.data?.error ||
+        err?.message ||
+        "Failed to submit harvest record.";
+      setStatusMessage({ type: "error", text: msg });
     } finally {
       setLoading(false);
     }
@@ -123,9 +157,61 @@ export default function LogYield() {
     <SafeAreaView className="flex-1 bg-[#FCF9F8]">
       <ScrollView className="flex-1 bg-[#FCF9F8] p-5">
         <View className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm">
-          <Text className="text-[#2A5C43] text-2xl font-black mb-4">
+          <Text className="text-[#2A5C43] text-2xl font-black mb-2">
             Log New Harvest
           </Text>
+
+          {statusMessage ? (
+            <View
+              className={`rounded-2xl p-4 mb-4 flex-row items-center gap-3 border ${
+                statusMessage.type === "success"
+                  ? "bg-[#E7F5EE] border-[#2A5C43]"
+                  : "bg-red-50 border-red-200"
+              }`}
+            >
+              <MaterialIcons
+                name={
+                  statusMessage.type === "success"
+                    ? "check-circle"
+                    : "error-outline"
+                }
+                size={24}
+                color={statusMessage.type === "success" ? "#2A5C43" : "#dc2626"}
+              />
+              <View className="flex-1">
+                <Text
+                  className={`font-black text-sm ${
+                    statusMessage.type === "success"
+                      ? "text-[#2A5C43]"
+                      : "text-red-800"
+                  }`}
+                >
+                  {statusMessage.type === "success"
+                    ? "Harvest Logged!"
+                    : "Submission Failed"}
+                </Text>
+                <Text
+                  className={`text-xs mt-0.5 ${
+                    statusMessage.type === "success"
+                      ? "text-[#1e4431]"
+                      : "text-red-700"
+                  }`}
+                >
+                  {statusMessage.text}
+                </Text>
+              </View>
+              {statusMessage.type === "error" ? (
+                <Pressable
+                  onPress={handleSubmit}
+                  className="bg-red-600 rounded-xl px-3 py-2"
+                >
+                  <Text className="text-white font-black text-xs">
+                    Try Again
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
 
           <View className="mt-4">
             <Text className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2 ml-1">

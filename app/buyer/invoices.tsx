@@ -1,87 +1,177 @@
-import { useFocusRefresh } from "../../lib/polling"
-import { MaterialIcons } from "@expo/vector-icons"
-import { useFocusEffect } from "expo-router"
-import { useCallback, useMemo, useState } from "react"
-import { ScrollView, Text, View } from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
+import { useFocusRefresh } from "../../lib/polling";
+import { MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { RefreshControl, ScrollView, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import api from "../../lib/api"
-import { shortHash } from "../../components/Toast"
+import api, { clearApiCache, fetchWithCache } from "../../lib/api";
+import { shortHash } from "../../components/Toast";
 
 type Order = {
-  id: number
-  quantity: string
-  produce: string
-  unit_price: string
-  total_amount: string
-  status: string
-  payment_status: string | null
-  created_at: string
-}
+  id: number;
+  quantity: string;
+  produce: string;
+  unit_price: string;
+  total_amount: string;
+  status: string;
+  payment_status: string | null;
+  created_at: string;
+};
 
 export default function BuyerInvoices() {
-  const [orders, setOrders] = useState<Order[]>([])
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const refresh = useCallback(async () => {
-    const { data } = await api.get("/orders")
-    setOrders(data)
-  }, [])
+  const loadFromCache = useCallback(() => {
+    AsyncStorage.getItem("buyer_orders_cache").then((cached) => {
+      if (cached) {
+        try {
+          setOrders(JSON.parse(cached));
+        } catch {}
+      }
+    });
+  }, []);
 
-  useFocusRefresh(refresh)
+  // Instant 0ms hydration on mount & tab focus
+  useFocusEffect(
+    useCallback(() => {
+      loadFromCache();
+      refresh();
+    }, [loadFromCache]),
+  );
+
+  const refresh = useCallback(async (isManual = false) => {
+    if (isManual) setRefreshing(true);
+    try {
+      if (isManual) clearApiCache();
+      const { data } = await fetchWithCache("/orders");
+      setOrders(data);
+      AsyncStorage.setItem("buyer_orders_cache", JSON.stringify(data)).catch(
+        () => {},
+      );
+    } catch (error) {
+      console.warn("Failed to load invoices:", error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  useFocusRefresh(refresh);
 
   const totals = useMemo(() => {
-    const paid = orders.filter((order) => order.status === "Paid" || order.payment_status === "Verified")
-    const unpaid = orders.filter((order) => order.status !== "Paid" && order.payment_status !== "Verified")
+    const paid = orders.filter(
+      (order) => order.status === "Paid" || order.payment_status === "Verified",
+    );
+    const unpaid = orders.filter(
+      (order) => order.status !== "Paid" && order.payment_status !== "Verified",
+    );
     return {
-      paid: paid.reduce((sum, order) => sum + Number(order.total_amount || 0), 0),
-      unpaid: unpaid.reduce((sum, order) => sum + Number(order.total_amount || 0), 0)
-    }
-  }, [orders])
+      paid: paid.reduce(
+        (sum, order) => sum + Number(order.total_amount || 0),
+        0,
+      ),
+      unpaid: unpaid.reduce(
+        (sum, order) => sum + Number(order.total_amount || 0),
+        0,
+      ),
+    };
+  }, [orders]);
 
   return (
     <SafeAreaView className="flex-1 bg-[#FCF9F8]">
-      <ScrollView className="flex-1 p-5" contentContainerStyle={{ paddingBottom: 30 }}>
+      <ScrollView
+        className="flex-1 p-5"
+        contentContainerStyle={{ paddingBottom: 30 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => refresh(true)}
+            colors={["#2A5C43"]}
+            tintColor="#2A5C43"
+          />
+        }
+      >
         <Text className="text-3xl font-black text-[#2A5C43]">Invoices</Text>
-        <Text className="text-gray-500 mt-1 mb-5">Order invoices generated from your live purchase history.</Text>
+        <Text className="text-gray-500 mt-1 mb-5">
+          Order invoices generated from your live purchase history.
+        </Text>
 
         <View className="flex-row gap-3 mb-4">
-          <Metric label="Paid" value={`KES ${totals.paid.toLocaleString()}`} icon="verified" />
-          <Metric label="Outstanding" value={`KES ${totals.unpaid.toLocaleString()}`} icon="pending-actions" />
+          <Metric
+            label="Paid"
+            value={`KES ${totals.paid.toLocaleString()}`}
+            icon="verified"
+          />
+          <Metric
+            label="Outstanding"
+            value={`KES ${totals.unpaid.toLocaleString()}`}
+            icon="pending-actions"
+          />
         </View>
 
         {orders.map((order) => {
-          const paid = order.status === "Paid" || order.payment_status === "Verified"
+          const paid =
+            order.status === "Paid" || order.payment_status === "Verified";
           return (
-            <View key={order.id} className="bg-white rounded-2xl p-4 border border-gray-200 mb-3">
+            <View
+              key={order.id}
+              className="bg-white rounded-2xl p-4 border border-gray-200 mb-3"
+            >
               <View className="flex-row items-start justify-between gap-3">
                 <View className="flex-1">
-                  <Text className="text-lg font-black text-[#2A5C43]">Invoice #{shortHash(order.id)}</Text>
+                  <Text className="text-lg font-black text-[#2A5C43]">
+                    Invoice #{shortHash(order.id)}
+                  </Text>
                   <Text className="text-gray-700 mt-1">{order.produce}</Text>
                 </View>
-                <View className={`rounded-full px-3 py-1 ${paid ? "bg-[#E7F5EE]" : "bg-amber-100"}`}>
-                  <Text className={`text-[11px] uppercase font-black ${paid ? "text-[#2A5C43]" : "text-amber-700"}`}>
+                <View
+                  className={`rounded-full px-3 py-1 ${paid ? "bg-[#E7F5EE]" : "bg-amber-100"}`}
+                >
+                  <Text
+                    className={`text-[11px] uppercase font-black ${paid ? "text-[#2A5C43]" : "text-amber-700"}`}
+                  >
                     {paid ? "Paid" : "Due"}
                   </Text>
                 </View>
               </View>
-              <Text className="text-gray-700 mt-3">Quantity: {Number(order.quantity || 0).toLocaleString()} kg</Text>
-              <Text className="text-gray-700">Unit price: KES {Number(order.unit_price || 0).toLocaleString()}</Text>
-              <Text className="text-gray-900 font-black mt-1">Total: KES {Number(order.total_amount || 0).toLocaleString()}</Text>
-              <Text className="text-gray-500 mt-1">{new Date(order.created_at).toLocaleDateString()}</Text>
+              <Text className="text-gray-700 mt-3">
+                Quantity: {Number(order.quantity || 0).toLocaleString()} kg
+              </Text>
+              <Text className="text-gray-700">
+                Unit price: KES {Number(order.unit_price || 0).toLocaleString()}
+              </Text>
+              <Text className="text-gray-900 font-black mt-1">
+                Total: KES {Number(order.total_amount || 0).toLocaleString()}
+              </Text>
+              <Text className="text-gray-500 mt-1">
+                {new Date(order.created_at).toLocaleDateString()}
+              </Text>
             </View>
-          )
+          );
         })}
       </ScrollView>
     </SafeAreaView>
-  )
+  );
 }
 
-function Metric({ label, value, icon }: { label: string; value: string; icon: keyof typeof MaterialIcons.glyphMap }) {
+function Metric({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: string;
+  icon: keyof typeof MaterialIcons.glyphMap;
+}) {
   return (
     <View className="flex-1 bg-white rounded-2xl p-4 border border-gray-200 min-h-[110px]">
       <MaterialIcons name={icon} size={21} color="#2A5C43" />
-      <Text className="text-[10px] text-gray-500 uppercase font-black mt-3">{label}</Text>
+      <Text className="text-[10px] text-gray-500 uppercase font-black mt-3">
+        {label}
+      </Text>
       <Text className="text-[#2A5C43] text-lg font-black mt-1">{value}</Text>
     </View>
-  )
+  );
 }

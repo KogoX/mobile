@@ -1,9 +1,11 @@
+import { useFocusEffect } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { FlatList, RefreshControl, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import api, { clearApiCache } from "../../lib/api";
+import api, { clearApiCache, fetchWithCache } from "../../lib/api";
 import { useFocusRefresh } from "../../lib/polling";
 import { shortHash } from "../../components/Toast";
 
@@ -21,20 +23,38 @@ export default function FarmerHistory() {
   const [yields, setYields] = useState<YieldItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [loadError, setLoadError] = useState("");
+
+  const loadFromCache = useCallback(() => {
+    AsyncStorage.getItem("farmer_yields_cache").then((cached) => {
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          setYields(parsed);
+          setIsLoading(false);
+        } catch {}
+      }
+    });
+  }, []);
+
+  // Instant 0ms hydration from local cache on mount and tab focus
+  useFocusEffect(
+    useCallback(() => {
+      loadFromCache();
+      refresh();
+    }, [loadFromCache]),
+  );
 
   const refresh = useCallback(async (isManual = false) => {
     if (isManual) setRefreshing(true);
     try {
-      setLoadError("");
       if (isManual) clearApiCache();
-      const { data } = await api.get("/yields");
+      const { data } = await fetchWithCache("/yields");
       setYields(data);
-    } catch (err: any) {
-      setLoadError(
-        "Harvest history is taking longer than usual. Please try refreshing shortly.",
+      AsyncStorage.setItem("farmer_yields_cache", JSON.stringify(data)).catch(
+        () => {},
       );
-      console.log("Failed to refresh history:", err);
+    } catch (err: any) {
+      // Silent catch: preserved from local storage cache
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -52,7 +72,7 @@ export default function FarmerHistory() {
       <FlatList
         className="flex-1 px-5 pt-5"
         contentContainerStyle={{ paddingBottom: 40 }}
-        data={!isLoading ? yields : []}
+        data={yields}
         keyExtractor={(item) => String(item.id)}
         initialNumToRender={10}
         maxToRenderPerBatch={10}
@@ -73,14 +93,6 @@ export default function FarmerHistory() {
             <Text className="text-gray-500 mt-1 mb-5">
               All your historical harvest records and their status.
             </Text>
-
-            {loadError ? (
-              <View className="bg-amber-50 rounded-xl border border-amber-200 px-4 py-3 mb-4">
-                <Text className="text-amber-800 font-bold text-sm">
-                  {loadError}
-                </Text>
-              </View>
-            ) : null}
 
             {isLoading && (
               <View className="items-center py-10 bg-white rounded-2xl border border-gray-200">

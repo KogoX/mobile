@@ -1,10 +1,11 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Linking,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -15,13 +16,14 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import api, { clearApiCache } from "../../lib/api";
+import api, { clearApiCache, fetchWithCache } from "../../lib/api";
 import { useFocusRefresh } from "../../lib/polling";
 import {
   canUseBiometrics,
   clearSession,
   disableBiometricSignIn,
   enableBiometricSignIn,
+  getSessionUser,
   isBiometricSignInEnabled,
   type SessionUser,
 } from "../../lib/session";
@@ -64,22 +66,62 @@ export default function FarmerProfile() {
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [manager, setManager] = useState<Manager | null>(null);
   const [managers, setManagers] = useState<Manager[]>([]);
-  const [loadError, setLoadError] = useState("");
   const [linkingManagerId, setLinkingManagerId] = useState<string | null>(null);
+
+  useEffect(() => {
+    getSessionUser().then((user) => {
+      if (user) {
+        setProfile((prev) => prev || (user as unknown as Profile));
+      }
+    });
+  }, []);
 
   // Edit state
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editLocation, setEditLocation] = useState("");
-  const [editPaymentDetails, setEditPaymentDetails] = useState("");
+  const [editMpesa, setEditMpesa] = useState("");
+  const [editBank, setEditBank] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Password change state
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [showNewPasswordText, setShowNewPasswordText] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
 
   // Delete state
   const [deleteMode, setDeleteMode] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState("");
 
   const [refreshing, setRefreshing] = useState(false);
+
+  async function handleChangePassword() {
+    if (!newPassword.trim() || newPassword.trim().length < 6) {
+      Alert.alert("Validation", "Password must be at least 6 characters long.");
+      return;
+    }
+    setChangingPassword(true);
+    try {
+      await api.patch("/auth/me/password", {
+        newPassword: newPassword.trim(),
+      });
+      setShowPasswordModal(false);
+      setNewPassword("");
+      Alert.alert(
+        "Password Updated ✓",
+        "Your password has been changed successfully. Use your new password the next time you log in.",
+      );
+    } catch (err: any) {
+      Alert.alert(
+        "Update Failed",
+        err?.response?.data?.error || err.message || "Unable to change password",
+      );
+    } finally {
+      setChangingPassword(false);
+    }
+  }
 
   const refresh = useCallback(async (isManual = false) => {
     if (isManual) {
@@ -88,13 +130,11 @@ export default function FarmerProfile() {
     }
     const [profileRes, yieldRes, payoutRes, managerRes] =
       await Promise.allSettled([
-        api.get("/auth/me"),
-        api.get("/yields"),
-        api.get("/payouts"),
-        api.get("/auth/managers/verified"),
+        fetchWithCache("/auth/me"),
+        fetchWithCache("/yields"),
+        fetchWithCache("/payouts"),
+        fetchWithCache("/auth/managers/verified"),
       ]);
-
-    let hasFailure = false;
 
     if (profileRes.status === "fulfilled") {
       const profileData = profileRes.value.data as Profile;
@@ -112,45 +152,22 @@ export default function FarmerProfile() {
       } else {
         setManager(null);
       }
-    } else {
-      hasFailure = true;
-      console.log(
-        "Failed to refresh farmer profile account:",
-        profileRes.reason,
-      );
     }
 
     if (yieldRes.status === "fulfilled") {
       setYields(yieldRes.value.data);
-    } else {
-      hasFailure = true;
-      console.log("Failed to refresh farmer profile yields:", yieldRes.reason);
     }
 
     if (payoutRes.status === "fulfilled") {
       setPayments(payoutRes.value.data);
-    } else {
-      hasFailure = true;
-      console.log(
-        "Failed to refresh farmer profile payouts:",
-        payoutRes.reason,
-      );
     }
 
     if (managerRes.status === "fulfilled") {
       const verifiedManagers = managerRes.value.data as Manager[];
       setManagers(verifiedManagers);
-    } else {
-      hasFailure = true;
-      console.log("Failed to refresh verified managers:", managerRes.reason);
     }
 
     setBiometricEnabled(await isBiometricSignInEnabled());
-    setLoadError(
-      hasFailure
-        ? "Some live profile details are taking longer than usual. Showing the latest saved information."
-        : "",
-    );
     setRefreshing(false);
   }, []);
 
@@ -159,6 +176,11 @@ export default function FarmerProfile() {
   const onRefresh = useCallback(() => {
     refresh(true);
   }, [refresh]);
+
+  const parsedPayments = useMemo(
+    () => parsePaymentDetails(profile?.payment_details),
+    [profile?.payment_details],
+  );
 
   const stats = useMemo(() => {
     const totalYield = yields.reduce(
@@ -183,7 +205,9 @@ export default function FarmerProfile() {
     setEditName(profile.name || "");
     setEditPhone(profile.phone || "");
     setEditLocation(profile.location || "");
-    setEditPaymentDetails(profile.payment_details || "");
+    const parsed = parsePaymentDetails(profile.payment_details);
+    setEditMpesa(parsed.mpesa);
+    setEditBank(parsed.bank);
     setEditing(true);
   }
 
@@ -197,12 +221,19 @@ export default function FarmerProfile() {
       return;
     }
     setSaving(true);
+    const m = editMpesa.trim();
+    const b = editBank.trim();
+    let combinedDetails = "";
+    if (m && b) combinedDetails = `M-Pesa: ${m} | Bank: ${b}`;
+    else if (m) combinedDetails = `M-Pesa: ${m}`;
+    else if (b) combinedDetails = `Bank: ${b}`;
+
     try {
       const { data } = await api.patch("/auth/me", {
         name: editName.trim(),
         phone: editPhone.trim(),
         location: editLocation.trim(),
-        payment_details: editPaymentDetails.trim(),
+        payment_details: combinedDetails,
       });
       setProfile(data);
       await AsyncStorage.setItem("user", JSON.stringify(data));
@@ -332,30 +363,11 @@ export default function FarmerProfile() {
                 <MaterialIcons name="edit" size={20} color="#2A5C43" />
               </Pressable>
             )}
-            <Pressable
-              onPress={() => router.push("/")}
-              className="h-11 w-11 rounded-full bg-white border border-gray-200 items-center justify-center"
-            >
-              <MaterialIcons name="home" size={22} color="#2A5C43" />
-            </Pressable>
-            <Pressable
-              onPress={() => router.push("/farmer")}
-              className="h-11 w-11 rounded-full bg-white border border-gray-200 items-center justify-center"
-            >
-              <MaterialIcons name="dashboard" size={22} color="#2A5C43" />
-            </Pressable>
           </View>
         </View>
         <Text className="text-gray-500 mt-1 mb-5">
           Your live account and farm performance summary.
         </Text>
-        {loadError ? (
-          <View className="bg-amber-50 rounded-xl border border-amber-200 px-4 py-3 mb-4">
-            <Text className="text-amber-800 font-bold text-sm">
-              {loadError}
-            </Text>
-          </View>
-        ) : null}
 
         {/* Hero card */}
         <View className="bg-[#125C3F] rounded-2xl p-5 mb-4">
@@ -454,10 +466,19 @@ export default function FarmerProfile() {
                   icon="location-on"
                 />
                 <EditField
-                  label="Payment Details (e.g. M-Pesa or Bank)"
-                  value={editPaymentDetails}
-                  onChangeText={setEditPaymentDetails}
-                  icon="account-balance-wallet"
+                  label="M-Pesa Number"
+                  value={editMpesa}
+                  onChangeText={setEditMpesa}
+                  icon="smartphone"
+                  keyboardType="phone-pad"
+                  placeholder="e.g. 0727019252"
+                />
+                <EditField
+                  label="Bank Account Details"
+                  value={editBank}
+                  onChangeText={setEditBank}
+                  icon="account-balance"
+                  placeholder="e.g. KCB Bank - 1234567890"
                 />
 
                 <View className="flex-row gap-3 mt-4">
@@ -487,8 +508,12 @@ export default function FarmerProfile() {
                 <Row label="Phone" value={profile.phone || "Not set"} />
                 <Row label="Location" value={profile.location || "Not set"} />
                 <Row
-                  label="Payment Details"
-                  value={profile.payment_details || "Not set"}
+                  label="M-Pesa Details"
+                  value={parsedPayments.mpesa || "Not set"}
+                />
+                <Row
+                  label="Bank Details"
+                  value={parsedPayments.bank || "Not set"}
                 />
               </>
             )}
@@ -671,6 +696,17 @@ export default function FarmerProfile() {
           )}
         </View>
 
+        {/* Security & Password */}
+        <Pressable
+          onPress={() => setShowPasswordModal(true)}
+          className="rounded-xl bg-white border border-gray-200 py-4 flex-row items-center justify-center gap-2 mb-3"
+        >
+          <MaterialIcons name="lock-reset" size={20} color="#2A5C43" />
+          <Text className="text-[#2A5C43] font-black">
+            Reset / Change Password
+          </Text>
+        </Pressable>
+
         {/* Biometrics */}
         <Pressable
           onPress={toggleBiometrics}
@@ -737,6 +773,64 @@ export default function FarmerProfile() {
           </Pressable>
         )}
       </ScrollView>
+
+      {/* Password Reset Modal */}
+      <Modal visible={showPasswordModal} animationType="slide" transparent>
+        <View className="flex-1 bg-black/60 justify-center items-center p-4">
+          <View className="bg-white rounded-3xl p-6 w-full max-w-md shadow-xl">
+            <View className="flex-row justify-between items-center mb-4">
+              <View className="flex-row items-center gap-2">
+                <MaterialIcons name="lock-reset" size={26} color="#2A5C43" />
+                <Text className="text-xl font-black text-[#2A5C43]">Reset Password</Text>
+              </View>
+              <Pressable
+                onPress={() => {
+                  setShowPasswordModal(false);
+                  setNewPassword("");
+                }}
+              >
+                <MaterialIcons name="close" size={24} color="#6B7280" />
+              </Pressable>
+            </View>
+
+            <Text className="text-gray-600 mb-4 text-sm font-medium">
+              Update your account password below. (Minimum 6 characters).
+            </Text>
+
+            <View className="mb-4">
+              <Text className="text-xs font-bold text-gray-500 mb-1">New Password</Text>
+              <View className="flex-row items-center bg-gray-50 border border-gray-300 rounded-xl px-3 py-1">
+                <MaterialIcons name="lock-outline" size={18} color="#2A5C43" />
+                <TextInput
+                  className="flex-1 min-h-[44px] ml-2 text-gray-900 font-medium"
+                  placeholder="Enter new password"
+                  secureTextEntry={!showNewPasswordText}
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                />
+                <Pressable onPress={() => setShowNewPasswordText((v) => !v)}>
+                  <MaterialIcons
+                    name={showNewPasswordText ? "visibility-off" : "visibility"}
+                    size={20}
+                    color="#6B7280"
+                  />
+                </Pressable>
+              </View>
+            </View>
+
+            <Pressable
+              disabled={changingPassword}
+              onPress={handleChangePassword}
+              className="bg-[#2A5C43] rounded-xl py-3.5 mt-2 items-center justify-center flex-row gap-2 shadow-md active:opacity-80"
+            >
+              {changingPassword ? <ActivityIndicator color="#ffffff" style={{ marginRight: 6 }} /> : null}
+              <Text className="text-white font-bold text-base">
+                {changingPassword ? "Updating..." : "Save New Password"}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -769,12 +863,14 @@ function EditField({
   onChangeText,
   icon,
   keyboardType,
+  placeholder,
 }: {
   label: string;
   value: string;
   onChangeText: (t: string) => void;
   icon: keyof typeof MaterialIcons.glyphMap;
   keyboardType?: "default" | "phone-pad" | "email-address";
+  placeholder?: string;
 }) {
   return (
     <View className="mb-3 mt-1">
@@ -788,10 +884,35 @@ function EditField({
           value={value}
           onChangeText={onChangeText}
           keyboardType={keyboardType}
+          placeholder={placeholder}
           autoCapitalize={keyboardType === "phone-pad" ? "none" : "words"}
           style={{ outlineStyle: "none" } as never}
         />
       </View>
     </View>
   );
+}
+
+function parsePaymentDetails(details?: string | null) {
+  if (!details) return { mpesa: "", bank: "" };
+  let mpesa = "";
+  let bank = "";
+  if (details.includes("M-Pesa:") || details.includes("Bank:")) {
+    const parts = details.split("|").map((s) => s.trim());
+    for (const part of parts) {
+      if (part.startsWith("M-Pesa:")) {
+        mpesa = part.replace("M-Pesa:", "").trim();
+      } else if (part.startsWith("Bank:")) {
+        bank = part.replace("Bank:", "").trim();
+      }
+    }
+  } else {
+    const clean = details.trim();
+    if (/^[\d\s+\-]+$/.test(clean)) {
+      mpesa = clean;
+    } else {
+      bank = clean;
+    }
+  }
+  return { mpesa, bank };
 }

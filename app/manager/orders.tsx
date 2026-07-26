@@ -1,10 +1,13 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
   Pressable,
   ScrollView,
   FlatList,
+  RefreshControl,
   Text,
   TextInput,
   View,
@@ -12,7 +15,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import api from "../../lib/api";
+import api, { clearApiCache, fetchWithCache } from "../../lib/api";
 import { usePollingRefresh } from "../../lib/polling";
 import { Toast, shortHash } from "../../components/Toast";
 
@@ -59,6 +62,35 @@ export default function ManagerOrders() {
   const [toast, setToast] = useState<ToastMsg>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadFromCache = useCallback(() => {
+    AsyncStorage.multiGet([
+      "manager_yields_cache",
+      "manager_orders_cache",
+    ]).then((stores) => {
+      const yData = stores[0][1];
+      const oData = stores[1][1];
+      if (yData)
+        try {
+          setYields(JSON.parse(yData));
+          setIsLoading(false);
+        } catch {}
+      if (oData)
+        try {
+          setOrders(JSON.parse(oData));
+          setIsLoading(false);
+        } catch {}
+    });
+  }, []);
+
+  // Instant 0ms hydration on mount & tab focus
+  useFocusEffect(
+    useCallback(() => {
+      loadFromCache();
+      refresh();
+    }, [loadFromCache]),
+  );
 
   function showToast(
     text: string,
@@ -67,16 +99,35 @@ export default function ManagerOrders() {
     setToast({ text, type });
   }
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (isManual = false) => {
+    if (isManual) {
+      setRefreshing(true);
+      clearApiCache();
+    }
     try {
-      const [yieldRes, orderRes] = await Promise.all([
-        api.get("/yields"),
-        api.get("/orders"),
+      const [yieldRes, orderRes] = await Promise.allSettled([
+        fetchWithCache("/yields"),
+        fetchWithCache("/orders"),
       ]);
-      setYields(yieldRes.data);
-      setOrders(orderRes.data);
+      if (yieldRes.status === "fulfilled") {
+        setYields(yieldRes.value.data);
+        AsyncStorage.setItem(
+          "manager_yields_cache",
+          JSON.stringify(yieldRes.value.data),
+        ).catch(() => {});
+      }
+      if (orderRes.status === "fulfilled") {
+        setOrders(orderRes.value.data);
+        AsyncStorage.setItem(
+          "manager_orders_cache",
+          JSON.stringify(orderRes.value.data),
+        ).catch(() => {});
+      }
+    } catch (error) {
+      console.warn("Failed to load items:", error);
     } finally {
       setIsLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -137,10 +188,41 @@ export default function ManagerOrders() {
     setUpdatingId(id);
     try {
       await api.patch(`/yields/${id}/status`, { status });
-      // Optimistic update — reflect status immediately in UI
-      setYields((prev) =>
-        prev.map((y) => (y.id === id ? { ...y, status } : y)),
+      clearApiCache();
+      const updatedList = yields.map((y) =>
+        y.id === id ? { ...y, status } : y,
       );
+      setYields(updatedList);
+      AsyncStorage.setItem(
+        "manager_yields_cache",
+        JSON.stringify(updatedList),
+      ).catch(() => {});
+
+      // Sync approved harvest directly to Buyer Market cache
+      if (status === "Approved") {
+        AsyncStorage.getItem("buyer_market_cache")
+          .then((cached) => {
+            const bList = cached ? JSON.parse(cached) : [];
+            const targetItem = updatedList.find((y) => y.id === id);
+            if (targetItem) {
+              const idx = bList.findIndex((item: any) => item.id === id);
+              let nextBList;
+              if (idx >= 0) {
+                nextBList = bList.map((item: any, i: number) =>
+                  i === idx ? targetItem : item,
+                );
+              } else {
+                nextBList = [targetItem, ...bList];
+              }
+              AsyncStorage.setItem(
+                "buyer_market_cache",
+                JSON.stringify(nextBList),
+              ).catch(() => {});
+            }
+          })
+          .catch(() => {});
+      }
+
       const label =
         status === "Approved"
           ? "Approve success"
@@ -166,10 +248,30 @@ export default function ManagerOrders() {
     setUpdatingId(id);
     try {
       await api.patch(`/orders/${id}/status`, { status });
-      // Optimistic update
-      setOrders((prev) =>
-        prev.map((o) => (o.id === id ? { ...o, status } : o)),
+      clearApiCache();
+      const updatedList = orders.map((o) =>
+        o.id === id ? { ...o, status } : o,
       );
+      setOrders(updatedList);
+      AsyncStorage.setItem(
+        "manager_orders_cache",
+        JSON.stringify(updatedList),
+      ).catch(() => {});
+
+      // Sync status directly to Buyer Orders cache
+      AsyncStorage.getItem("buyer_orders_cache")
+        .then((cached) => {
+          const bList = cached ? JSON.parse(cached) : [];
+          const nextBList = bList.map((item: any) =>
+            item.id === id ? { ...item, status } : item,
+          );
+          AsyncStorage.setItem(
+            "buyer_orders_cache",
+            JSON.stringify(nextBList),
+          ).catch(() => {});
+        })
+        .catch(() => {});
+
       const label =
         status === "Approved"
           ? "Order approved"
@@ -198,8 +300,20 @@ export default function ManagerOrders() {
       <FlatList
         className="flex-1 px-5 pt-5"
         contentContainerStyle={{ paddingBottom: 30 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => refresh(true)}
+            colors={["#2A5C43"]}
+            tintColor="#2A5C43"
+          />
+        }
         data={
-          isLoading ? [] : mode === "harvests" ? filteredYields : filteredOrders
+          (isLoading
+            ? []
+            : mode === "harvests"
+              ? filteredYields
+              : filteredOrders) as any[]
         }
         keyExtractor={(item) => item.id}
         initialNumToRender={5}
@@ -373,7 +487,7 @@ export default function ManagerOrders() {
                     className="mt-3"
                   >
                     <View className="flex-row gap-2">
-                      {row.photos.map((uri, index) => (
+                      {row.photos.map((uri: string, index: number) => (
                         <Image
                           key={`${row.id}-${index}`}
                           source={{ uri }}

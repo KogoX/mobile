@@ -25,82 +25,70 @@ console.log(`[api] backend base URL resolved to: ${normalizedBase}`)
 
 const api = axios.create({
   baseURL: `${normalizedBase.replace(/\/$/, "")}/api`,
-  timeout: 15000
-})
+  timeout: 5000,
+});
 
-let cachedToken: string | null | undefined
+let cachedToken: string | null | undefined;
 
 export function setAuthToken(token: string | null) {
-  cachedToken = token
+  cachedToken = token;
 }
 
 export function clearAuthToken() {
-  cachedToken = null
+  cachedToken = null;
 }
 
 api.interceptors.request.use(async (config) => {
   if (cachedToken === undefined) {
-    cachedToken = await AsyncStorage.getItem("token")
+    cachedToken = await AsyncStorage.getItem("token");
   }
   if (cachedToken) {
-    config.headers.Authorization = `Bearer ${cachedToken}`
+    config.headers.Authorization = `Bearer ${cachedToken}`;
   }
-  return config
-})
-
-const SUPPRESS_MS = 30_000
-let _lastNetworkErrorLog = 0
+  return config;
+});
 
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    const isNetworkError =
-      !error.response &&
-      (error.message === "Network Error" || error.code === "ECONNABORTED")
-
-    if (isNetworkError) {
-      const now = Date.now()
-      if (now - _lastNetworkErrorLog >= SUPPRESS_MS) {
-        _lastNetworkErrorLog = now
-        console.warn(
-          `[api] Network Error — cannot reach ${api.defaults.baseURL}.\n` +
-          `  • Is the backend running?\n` +
-          `  • On a device/emulator, update EXPO_PUBLIC_API_URL in mobile/.env to your machine's LAN IP.\n` +
-          `  • Current value: ${normalizedBase}\n` +
-          `  (Further network errors will be suppressed for 30 s)`
-        )
-      }
-    }
     if (error.response && error.response.status === 401) {
-      // Clear in-memory token to force re-auth
       cachedToken = null;
-      // Note: Full session clear and routing to login should ideally 
-      // be handled at the root app level or context, but clearing 
-      // the token here prevents looping requests.
       AsyncStorage.removeItem("token").catch(() => {});
     }
 
-    return Promise.reject(error)
-  }
-)
+    return Promise.reject(error);
+  },
+);
 
-const memoryCache = new Map<string, { data: any; timestamp: number }>()
+const memoryCache = new Map<string, { data: any; timestamp: number }>();
 
 /**
- * Helper to fetch data with an in-memory cache to prevent duplicate fetching
- * and improve app startup speed across tab switches.
+ * Ultra-fast Stale-While-Revalidate (SWR) cache helper.
+ * Returns cached memory data in 0ms if available, and silently updates from backend in background.
  */
-export async function fetchWithCache(url: string, maxAgeMs = 2 * 60 * 1000) {
-  const cached = memoryCache.get(url)
-  if (cached && Date.now() - cached.timestamp < maxAgeMs) {
-    // Return cached data immediately, but we can also trigger a background refresh
-    // For simplicity, just return the cached data to prevent duplicate requests.
-    return { data: cached.data }
+export async function fetchWithCache(url: string) {
+  const cached = memoryCache.get(url);
+
+  // Background revalidation
+  const fetchPromise = api
+    .get(url)
+    .then((res) => {
+      if (res && res.data) {
+        memoryCache.set(url, { data: res.data, timestamp: Date.now() });
+      }
+      return res;
+    })
+    .catch((err) => {
+      if (cached) return { data: cached.data };
+      throw err;
+    });
+
+  // Return cached data in 0ms if available
+  if (cached) {
+    return { data: cached.data };
   }
-  
-  const response = await api.get(url)
-  memoryCache.set(url, { data: response.data, timestamp: Date.now() })
-  return response
+
+  return fetchPromise;
 }
 
 export function clearApiCache() {

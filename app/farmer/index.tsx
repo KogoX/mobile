@@ -1,12 +1,16 @@
+import { useFocusEffect } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import api, { clearApiCache, fetchWithCache } from "../../lib/api";
 import { usePollingRefresh } from "../../lib/polling";
+import { getSessionUser } from "../../lib/session";
 
 type YieldItem = {
-  id: number;
+  id: string | number;
   crop_season: string;
   variety: string;
   quantity: string;
@@ -15,8 +19,8 @@ type YieldItem = {
 };
 
 type PayoutItem = {
-  id: number;
-  order_id: number | null;
+  id: string | number;
+  order_id: string | number | null;
   amount: string;
   method: string;
   status: string;
@@ -26,7 +30,7 @@ type PayoutItem = {
 };
 
 type OrderItem = {
-  id: number;
+  id: string | number;
   produce: string;
   quantity: string;
   total_amount: string;
@@ -53,12 +57,50 @@ export default function FarmerDashboard() {
   const [loadError, setLoadError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
+  const loadFromCache = useCallback(() => {
+    getSessionUser().then((user) => {
+      if (user) {
+        setName(user.name || "Farmer");
+        setUniqueId(user.unique_id || "");
+      }
+    });
+
+    AsyncStorage.multiGet([
+      "farmer_yields_cache",
+      "farmer_payouts_cache",
+      "farmer_orders_cache",
+    ]).then((stores) => {
+      const yData = stores[0][1];
+      const pData = stores[1][1];
+      const oData = stores[2][1];
+      if (yData)
+        try {
+          setYields(JSON.parse(yData));
+        } catch {}
+      if (pData)
+        try {
+          setPayouts(JSON.parse(pData));
+        } catch {}
+      if (oData)
+        try {
+          setOrders(JSON.parse(oData));
+        } catch {}
+    });
+  }, []);
+
+  // Instant 0ms hydration from local storage on mount and tab focus
+  useFocusEffect(
+    useCallback(() => {
+      loadFromCache();
+      refresh();
+    }, [loadFromCache]),
+  );
+
   const refresh = useCallback(async (isManual = false) => {
     if (isManual) {
       setRefreshing(true);
       clearApiCache();
     }
-    // Fetch independently so cached items render instantly
     const p1 = fetchWithCache("/auth/me")
       .then((res) => {
         const profile = res.data as FarmerProfile;
@@ -68,13 +110,33 @@ export default function FarmerDashboard() {
       .catch(console.error);
 
     const p2 = fetchWithCache("/yields")
-      .then((res) => setYields(res.data))
+      .then((res) => {
+        setYields(res.data);
+        AsyncStorage.setItem(
+          "farmer_yields_cache",
+          JSON.stringify(res.data),
+        ).catch(() => {});
+      })
       .catch(console.error);
+
     const p3 = fetchWithCache("/payouts")
-      .then((res) => setPayouts(res.data))
+      .then((res) => {
+        setPayouts(res.data);
+        AsyncStorage.setItem(
+          "farmer_payouts_cache",
+          JSON.stringify(res.data),
+        ).catch(() => {});
+      })
       .catch(console.error);
+
     const p4 = fetchWithCache("/orders")
-      .then((res) => setOrders(res.data))
+      .then((res) => {
+        setOrders(res.data);
+        AsyncStorage.setItem(
+          "farmer_orders_cache",
+          JSON.stringify(res.data),
+        ).catch(() => {});
+      })
       .catch(console.error);
 
     await Promise.allSettled([p1, p2, p3, p4]);
@@ -161,7 +223,7 @@ export default function FarmerDashboard() {
         }
       >
         <Text className="text-3xl font-black text-[#2A5C43]">
-          Good morning, {name}
+          Welcome, {name}
         </Text>
         {uniqueId ? (
           <Text className="text-gray-500 font-bold mt-1">

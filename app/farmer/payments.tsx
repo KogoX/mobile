@@ -1,9 +1,10 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusRefresh } from "../../lib/polling";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { FlatList, RefreshControl, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import api, { clearApiCache } from "../../lib/api";
+import api, { clearApiCache, fetchWithCache } from "../../lib/api";
 import { shortHash } from "../../components/Toast";
 
 type Payout = {
@@ -22,12 +23,29 @@ export default function FarmerPayments() {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Instant 0ms hydration from local storage
+  useEffect(() => {
+    AsyncStorage.getItem("farmer_payouts_cache").then((cached) => {
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          setPayouts(parsed);
+          setIsLoading(false);
+        } catch {}
+      }
+    });
+    refresh();
+  }, []);
+
   const refresh = useCallback(async (isManual = false) => {
     if (isManual) setRefreshing(true);
     try {
       if (isManual) clearApiCache();
-      const { data } = await api.get("/payouts");
+      const { data } = await fetchWithCache("/payouts");
       setPayouts(data);
+      AsyncStorage.setItem("farmer_payouts_cache", JSON.stringify(data)).catch(
+        () => {},
+      );
     } catch (err) {
       console.log("Failed to refresh payouts:", err);
     } finally {

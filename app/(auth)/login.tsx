@@ -4,6 +4,7 @@ import { useRouter } from "expo-router"
 import { useEffect, useState } from "react"
 import {
   Alert,
+  Modal,
   Pressable,
   ScrollView,
   Text,
@@ -35,12 +36,49 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false)
   const [biometricReady, setBiometricReady] = useState(false)
   const [error, setError] = useState("")
+
+  // Reset Password State
+  const [showResetModal, setShowResetModal] = useState(false)
+  const [resetEmail, setResetEmail] = useState("")
+  const [resetNewPassword, setResetNewPassword] = useState("")
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetError, setResetError] = useState("")
   
   const isWide = width >= 760
 
   useEffect(() => {
     isBiometricSignInEnabled().then(setBiometricReady).catch(() => setBiometricReady(false))
   }, [])
+
+  const handleResetPassword = async () => {
+    if (!resetEmail.trim() || !resetNewPassword.trim()) {
+      setResetError("Please enter both email and new password.")
+      return
+    }
+    if (resetNewPassword.trim().length < 6) {
+      setResetError("Password must be at least 6 characters long.")
+      return
+    }
+
+    setResetLoading(true)
+    setResetError("")
+    try {
+      const { data } = await api.post("/auth/reset-password", {
+        email: resetEmail.trim(),
+        newPassword: resetNewPassword.trim()
+      })
+      setShowResetModal(false)
+      setEmail(resetEmail.trim())
+      setPassword(resetNewPassword.trim())
+      setResetNewPassword("")
+      Alert.alert("Password Reset ✓", data.message || "Password updated. You can now sign in.")
+    } catch (err: any) {
+      setResetError(err?.response?.data?.error || err.message || "Password reset failed.")
+    } finally {
+      setResetLoading(false)
+    }
+  }
 
   const signIn = async () => {
     if (!email || !password) {
@@ -196,7 +234,13 @@ export default function LoginScreen() {
               </View>
               <Text className="text-sm text-gray-600 font-medium">Remember me</Text>
             </Pressable>
-            <Pressable>
+            <Pressable
+              onPress={() => {
+                setResetEmail(email);
+                setResetError("");
+                setShowResetModal(true);
+              }}
+            >
               <Text className="text-sm text-[#2A5C43] underline font-medium">
                 Forgot password?
               </Text>
@@ -245,6 +289,68 @@ export default function LoginScreen() {
         </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Password Reset Modal */}
+      <Modal visible={showResetModal} animationType="slide" transparent>
+        <View className="flex-1 bg-black/60 justify-center items-center p-4">
+          <View className="bg-white rounded-3xl p-6 w-full max-w-md shadow-xl">
+            <View className="flex-row justify-between items-center mb-4">
+              <View className="flex-row items-center gap-2">
+                <MaterialIcons name="lock-reset" size={26} color="#2A5C43" />
+                <Text className="text-xl font-black text-[#2A5C43]">Reset Password</Text>
+              </View>
+              <Pressable
+                onPress={() => {
+                  setShowResetModal(false);
+                  setResetError("");
+                }}
+              >
+                <MaterialIcons name="close" size={24} color="#6B7280" />
+              </Pressable>
+            </View>
+
+            <Text className="text-gray-600 mb-4 text-sm font-medium">
+              Enter your account email address and choose a new password.
+            </Text>
+
+            {resetError ? (
+              <Text className="text-red-500 text-sm mb-3 font-medium">{resetError}</Text>
+            ) : null}
+
+            <Field
+              label="Account Email"
+              icon="mail-outline"
+              placeholder="e.g. user@example.com"
+              keyboardType="email-address"
+              value={resetEmail}
+              onChangeText={setResetEmail}
+            />
+
+            <Field
+              label="New Password"
+              icon="lock-outline"
+              placeholder="Enter new password (min 6 chars)"
+              secureTextEntry={!showNewPassword}
+              showToggle
+              onToggleShow={() => setShowNewPassword((v) => !v)}
+              isVisible={showNewPassword}
+              value={resetNewPassword}
+              onChangeText={setResetNewPassword}
+            />
+
+            <Pressable
+              disabled={resetLoading}
+              onPress={handleResetPassword}
+              className="bg-[#2A5C43] rounded-xl py-3.5 mt-4 items-center justify-center flex-row gap-2 shadow-md active:opacity-80"
+            >
+              {resetLoading ? <ActivityIndicator color="#ffffff" style={{ marginRight: 6 }} /> : null}
+              <Text className="text-white font-bold text-base">
+                {resetLoading ? "Updating..." : "Reset Password"}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </WebContainer>
   )
 }

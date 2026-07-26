@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import api, { fetchWithCache } from "../../lib/api";
+import api, { clearApiCache, fetchWithCache } from "../../lib/api";
 import { useFocusRefresh } from "../../lib/polling";
 import { notifyNewListing } from "../../lib/notifications";
 import { getSessionUser } from "../../lib/session";
@@ -74,7 +74,31 @@ export default function BuyerDashboard() {
     [approvedListings],
   );
 
-  // Optimization: Cached user details check to prevent unnecessary async operations on poll
+  const loadFromCache = useCallback(() => {
+    getSessionUser().then((user) => {
+      if (user?.name) setBuyerName(user.name);
+      if (user?.unique_id) setUniqueId(user.unique_id);
+    });
+
+    AsyncStorage.getItem("buyer_market_cache").then((cached) => {
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          setListings(parsed);
+          setIsLoading(false);
+        } catch {}
+      }
+    });
+  }, []);
+
+  // Instant 0ms hydration on mount & tab focus
+  useFocusEffect(
+    useCallback(() => {
+      loadFromCache();
+      refresh();
+    }, [loadFromCache]),
+  );
+
   const refresh = useCallback(async () => {
     try {
       getSessionUser()
@@ -114,6 +138,10 @@ export default function BuyerDashboard() {
 
           await AsyncStorage.setItem(listingCountKey, String(visible.length));
           setListings(nextListings);
+          AsyncStorage.setItem(
+            "buyer_market_cache",
+            JSON.stringify(nextListings),
+          ).catch(() => {});
           setIsLoading(false);
         })
         .catch(() => setIsLoading(false));
@@ -143,12 +171,30 @@ export default function BuyerDashboard() {
 
     try {
       setCreatingId(listing.id);
-      await api.post("/orders", {
+      const res = await api.post("/orders", {
         quantity: requested,
-        unitPrice: 1200,
+        unitPrice: 120,
         produce: listing.variety,
         yield_id: listing.id,
       });
+
+      // Instantly update buyer_orders_cache in AsyncStorage
+      if (res.data) {
+        clearApiCache();
+        try {
+          const cached = await AsyncStorage.getItem("buyer_orders_cache");
+          const parsed = cached ? JSON.parse(cached) : [];
+          const updated = [
+            res.data,
+            ...parsed.filter((o: any) => o.id !== res.data.id),
+          ];
+          await AsyncStorage.setItem(
+            "buyer_orders_cache",
+            JSON.stringify(updated),
+          );
+        } catch {}
+      }
+
       setSelectedListing(null);
       Alert.alert(
         "Harvest Booked ✓",
@@ -355,6 +401,7 @@ export default function BuyerDashboard() {
                     source={{ uri: listing.photos[0] }}
                     style={{ width: "100%", height: 200 }}
                     contentFit="cover"
+                    transition={300}
                   />
                   {/* Photo count badge */}
                   {listing.photos.length > 1 && (

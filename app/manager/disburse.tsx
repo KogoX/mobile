@@ -1,85 +1,150 @@
-import { useFocusRefresh } from "../../lib/polling"
-import { MaterialIcons } from "@expo/vector-icons"
-import { useFocusEffect } from "expo-router"
-import { useCallback, useMemo, useState } from "react"
-import { Modal, Pressable, ScrollView, Text, TextInput, View, ActivityIndicator } from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
+import { useFocusRefresh } from "../../lib/polling";
+import { MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
+import {
+  Modal,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+  ActivityIndicator,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import api from "../../lib/api"
-import { Toast, shortHash } from "../../components/Toast"
+import api, { clearApiCache, fetchWithCache } from "../../lib/api";
+import { Toast, shortHash } from "../../components/Toast";
 
 type Farmer = {
-  id: string
-  name: string
-  location: string | null
-  phone?: string | null
-}
+  id: string;
+  name: string;
+  location: string | null;
+  phone?: string | null;
+};
 
 type Payout = {
-  id: string
-  farmer: string | null
-  amount: string
-  method: string
-  status: string
-  reference: string | null
-  created_at: string
-}
+  id: string;
+  farmer: string | null;
+  amount: string;
+  method: string;
+  status: string;
+  reference: string | null;
+  created_at: string;
+};
 
-const METHODS = ["mpesa", "bank", "cash", "airtel"] as const
-type Method = (typeof METHODS)[number]
+const METHODS = ["mpesa", "bank", "cash", "airtel"] as const;
+type Method = (typeof METHODS)[number];
 
-type ToastMsg = { text: string; type: "success" | "error" | "info" } | null
+type ToastMsg = { text: string; type: "success" | "error" | "info" } | null;
 
 export default function ManagerDisburse() {
-  const [farmers, setFarmers] = useState<Farmer[]>([])
-  const [payouts, setPayouts] = useState<Payout[]>([])
-  const [selectedFarmer, setSelectedFarmer] = useState<Farmer | null>(null)
-  const [showFarmerPicker, setShowFarmerPicker] = useState(false)
-  const [amount, setAmount] = useState("")
-  const [method, setMethod] = useState<Method>("mpesa")
-  const [phone, setPhone] = useState("")
-  const [bankCode, setBankCode] = useState("")
-  const [accountNumber, setAccountNumber] = useState("")
-  const [notes, setNotes] = useState("")
-  const [submitting, setSubmitting] = useState(false)
-  const [toast, setToast] = useState<ToastMsg>(null)
-  const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [farmers, setFarmers] = useState<Farmer[]>([]);
+  const [payouts, setPayouts] = useState<Payout[]>([]);
+  const [selectedFarmer, setSelectedFarmer] = useState<Farmer | null>(null);
+  const [showFarmerPicker, setShowFarmerPicker] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [method, setMethod] = useState<Method>("mpesa");
+  const [phone, setPhone] = useState("");
+  const [bankCode, setBankCode] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [notes, setNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [toast, setToast] = useState<ToastMsg>(null);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  function showToast(text: string, type: "success" | "error" | "info" = "success") {
-    setToast({ text, type })
+  function showToast(
+    text: string,
+    type: "success" | "error" | "info" = "success",
+  ) {
+    setToast({ text, type });
   }
 
   // Batch Mode states
-  const [payoutMode, setPayoutMode] = useState<"single" | "batch">("single")
-  const [batchSelectedFarmers, setBatchSelectedFarmers] = useState<string[]>([])
-  const [defaultBatchAmount, setDefaultBatchAmount] = useState("")
+  const [payoutMode, setPayoutMode] = useState<"single" | "batch">("single");
+  const [batchSelectedFarmers, setBatchSelectedFarmers] = useState<string[]>(
+    [],
+  );
+  const [defaultBatchAmount, setDefaultBatchAmount] = useState("");
   const [batchDetails, setBatchDetails] = useState<
-    Record<string, { amount: string; phone: string; bankCode: string; accountNumber: string }>
-  >({})
+    Record<
+      string,
+      { amount: string; phone: string; bankCode: string; accountNumber: string }
+    >
+  >({});
 
-  const refresh = useCallback(async () => {
-    try {
-      const [farmersRes, payoutsRes] = await Promise.all([api.get("/farmers"), api.get("/payouts")])
-      setFarmers(farmersRes.data)
-      setPayouts(payoutsRes.data)
-    } catch (error) {
-      console.warn("Failed to load payouts:", error)
+  const loadFromCache = useCallback(() => {
+    AsyncStorage.multiGet([
+      "manager_farmers_cache",
+      "manager_payouts_cache",
+    ]).then((stores) => {
+      const fData = stores[0][1];
+      const pData = stores[1][1];
+      if (fData)
+        try {
+          setFarmers(JSON.parse(fData));
+        } catch {}
+      if (pData)
+        try {
+          setPayouts(JSON.parse(pData));
+        } catch {}
+    });
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadFromCache();
+      refresh();
+    }, [loadFromCache]),
+  );
+
+  const refresh = useCallback(async (isManual = false) => {
+    if (isManual) {
+      setRefreshing(true);
+      clearApiCache();
     }
-  }, [])
+    try {
+      const [farmersRes, payoutsRes] = await Promise.allSettled([
+        fetchWithCache("/farmers"),
+        fetchWithCache("/payouts"),
+      ]);
+      if (farmersRes.status === "fulfilled") {
+        setFarmers(farmersRes.value.data);
+        AsyncStorage.setItem(
+          "manager_farmers_cache",
+          JSON.stringify(farmersRes.value.data),
+        ).catch(() => {});
+      }
+      if (payoutsRes.status === "fulfilled") {
+        setPayouts(payoutsRes.value.data);
+        AsyncStorage.setItem(
+          "manager_payouts_cache",
+          JSON.stringify(payoutsRes.value.data),
+        ).catch(() => {});
+      }
+    } catch (error) {
+      console.warn("Failed to load disburse items:", error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
-  useFocusRefresh(refresh)
+  useFocusRefresh(refresh);
 
   function chooseFarmer(farmer: Farmer) {
-    setSelectedFarmer(farmer)
-    setPhone(farmer.phone ? farmer.phone.replace(/^\+\d+/, "") : "")
-    setShowFarmerPicker(false)
+    setSelectedFarmer(farmer);
+    setPhone(farmer.phone ? farmer.phone.replace(/^\+\d+/, "") : "");
+    setShowFarmerPicker(false);
   }
 
   function toggleFarmerSelection(farmer: Farmer) {
     setBatchSelectedFarmers((prev) => {
-      const exists = prev.includes(farmer.id)
+      const exists = prev.includes(farmer.id);
       if (exists) {
-        return prev.filter((id) => id !== farmer.id)
+        return prev.filter((id) => id !== farmer.id);
       } else {
         setBatchDetails((details) => ({
           ...details,
@@ -87,196 +152,284 @@ export default function ManagerDisburse() {
             amount: defaultBatchAmount,
             phone: farmer.phone ? farmer.phone.replace(/^\+\d+/, "") : "",
             bankCode: "",
-            accountNumber: ""
-          }
-        }))
-        return [...prev, farmer.id]
+            accountNumber: "",
+          },
+        }));
+        return [...prev, farmer.id];
       }
-    })
+    });
   }
 
   function applyDefaultAmount(val: string) {
-    setDefaultBatchAmount(val)
+    setDefaultBatchAmount(val);
     setBatchDetails((prev) => {
-      const updated = { ...prev }
+      const updated = { ...prev };
       batchSelectedFarmers.forEach((id) => {
         updated[id] = {
-          ...(updated[id] || { amount: "", phone: "", bankCode: "", accountNumber: "" }),
-          amount: val
-        }
-      })
-      return updated
-    })
+          ...(updated[id] || {
+            amount: "",
+            phone: "",
+            bankCode: "",
+            accountNumber: "",
+          }),
+          amount: val,
+        };
+      });
+      return updated;
+    });
   }
 
-  function updateFarmerDetail(farmerId: string, key: "amount" | "phone" | "bankCode" | "accountNumber", val: string) {
+  function updateFarmerDetail(
+    farmerId: string,
+    key: "amount" | "phone" | "bankCode" | "accountNumber",
+    val: string,
+  ) {
     setBatchDetails((prev) => ({
       ...prev,
       [farmerId]: {
-        ...(prev[farmerId] || { amount: "", phone: "", bankCode: "", accountNumber: "" }),
-        [key]: val
-      }
-    }))
+        ...(prev[farmerId] || {
+          amount: "",
+          phone: "",
+          bankCode: "",
+          accountNumber: "",
+        }),
+        [key]: val,
+      },
+    }));
   }
 
   async function submitPayout() {
+    if (submitting) return;
     if (!selectedFarmer || !amount) {
-      showToast("Select a farmer and enter an amount.", "error")
-      return
+      showToast("Select a farmer and enter an amount.", "error");
+      return;
     }
     if ((method === "mpesa" || method === "airtel") && !phone) {
-      showToast(`Enter the farmer's ${method === "mpesa" ? "M-Pesa" : "Airtel"} phone number.`, "error")
-      return
+      showToast(
+        `Enter the farmer's ${method === "mpesa" ? "M-Pesa" : "Airtel"} phone number.`,
+        "error",
+      );
+      return;
     }
     if (method === "bank" && (!bankCode || !accountNumber)) {
-      showToast("Enter the bank code and account number.", "error")
-      return
+      showToast("Enter the bank code and account number.", "error");
+      return;
     }
 
     try {
-      setSubmitting(true)
+      setSubmitting(true);
       await api.post("/payouts", {
         farmer_id: selectedFarmer.id,
         amount: Number(amount),
         method,
-        phone: (method === "mpesa" || method === "airtel") ? `+${phone.replace(/[^0-9]/g, "")}` : undefined,
+        phone:
+          method === "mpesa" || method === "airtel"
+            ? `+${phone.replace(/[^0-9]/g, "")}`
+            : undefined,
         bank_code: method === "bank" ? bankCode : undefined,
         account_number: method === "bank" ? accountNumber : undefined,
-        notes: notes || undefined
-      })
-      showToast("Payout initiated successfully")
-      setAmount("")
-      setNotes("")
-      setAccountNumber("")
-      setBankCode("")
-      refresh()
+        notes: notes || undefined,
+      });
+      showToast("Payout initiated successfully");
+      setAmount("");
+      setNotes("");
+      setAccountNumber("");
+      setBankCode("");
+      refresh();
     } catch (error: any) {
-      showToast(error?.response?.data?.error || error.message || "Payout failed", "error")
+      showToast(
+        error?.response?.data?.error || error.message || "Payout failed",
+        "error",
+      );
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
   }
 
   async function submitBatchPayout() {
+    if (submitting) return;
     if (batchSelectedFarmers.length === 0) {
-      showToast("Please select at least one farmer.", "error")
-      return
+      showToast("Please select at least one farmer.", "error");
+      return;
     }
 
-    const payloadPayouts = []
+    const payloadPayouts = [];
     for (const farmerId of batchSelectedFarmers) {
-      const farmer = farmers.find((f) => f.id === farmerId)
-      const details = batchDetails[farmerId] || { amount: "", phone: "", bankCode: "", accountNumber: "" }
+      const farmer = farmers.find((f) => f.id === farmerId);
+      const details = batchDetails[farmerId] || {
+        amount: "",
+        phone: "",
+        bankCode: "",
+        accountNumber: "",
+      };
 
       if (!details.amount || Number(details.amount) <= 0) {
-        showToast(`Enter a valid amount for ${farmer?.name}.`, "error")
-        return
+        showToast(`Enter a valid amount for ${farmer?.name}.`, "error");
+        return;
       }
 
       if ((method === "mpesa" || method === "airtel") && !details.phone) {
-        showToast(`Enter ${method === "mpesa" ? "M-Pesa" : "Airtel"} phone for ${farmer?.name}.`, "error")
-        return
+        showToast(
+          `Enter ${method === "mpesa" ? "M-Pesa" : "Airtel"} phone for ${farmer?.name}.`,
+          "error",
+        );
+        return;
       }
 
       if (method === "bank" && (!details.bankCode || !details.accountNumber)) {
-        showToast(`Fill bank code and account for ${farmer?.name}.`, "error")
-        return
+        showToast(`Fill bank code and account for ${farmer?.name}.`, "error");
+        return;
       }
 
       payloadPayouts.push({
         farmer_id: farmerId,
         amount: Number(details.amount),
         method,
-        phone: (method === "mpesa" || method === "airtel") ? `+${details.phone.replace(/[^0-9]/g, "")}` : undefined,
+        phone:
+          method === "mpesa" || method === "airtel"
+            ? `+${details.phone.replace(/[^0-9]/g, "")}`
+            : undefined,
         bank_code: method === "bank" ? details.bankCode : undefined,
-        account_number: method === "bank" ? details.accountNumber : undefined
-      })
+        account_number: method === "bank" ? details.accountNumber : undefined,
+      });
     }
 
     try {
-      setSubmitting(true)
+      setSubmitting(true);
       await api.post("/payouts/batch", {
         payouts: payloadPayouts,
-        notes: notes || undefined
-      })
-      showToast(`${payloadPayouts.length} batch payouts initiated`)
-      setBatchSelectedFarmers([])
-      setBatchDetails({})
-      setDefaultBatchAmount("")
-      setNotes("")
-      refresh()
+        notes: notes || undefined,
+      });
+      showToast(`${payloadPayouts.length} batch payouts initiated`);
+      setBatchSelectedFarmers([]);
+      setBatchDetails({});
+      setDefaultBatchAmount("");
+      setNotes("");
+      refresh();
     } catch (error: any) {
-      showToast(error?.response?.data?.error || error.message || "Batch payout failed", "error")
+      showToast(
+        error?.response?.data?.error || error.message || "Batch payout failed",
+        "error",
+      );
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
   }
 
   async function updateStatus(id: string, status: string) {
-    setUpdatingId(id)
+    setUpdatingId(id);
     try {
-      await api.patch(`/payouts/${id}/status`, { status })
-      await refresh()
-      const label = status === "Paid" ? "Payout marked as paid" : status === "Failed" ? "Payout marked failed" : `Status: ${status}`
-      showToast(label, status === "Failed" ? "error" : "success")
+      await api.patch(`/payouts/${id}/status`, { status });
+      await refresh();
+      const label =
+        status === "Paid"
+          ? "Payout marked as paid"
+          : status === "Failed"
+            ? "Payout marked failed"
+            : `Status: ${status}`;
+      showToast(label, status === "Failed" ? "error" : "success");
     } catch (error: any) {
-      showToast(error?.response?.data?.error || error.message || "Unable to update", "error")
+      showToast(
+        error?.response?.data?.error || error.message || "Unable to update",
+        "error",
+      );
     } finally {
-      setUpdatingId(null)
+      setUpdatingId(null);
     }
   }
 
   const totals = useMemo(() => {
-    const paid = payouts.filter((item) => item.status === "Paid")
+    const paid = payouts.filter((item) => item.status === "Paid");
     return {
       paidAmount: paid.reduce((sum, item) => sum + Number(item.amount || 0), 0),
       pendingAmount: payouts
         .filter((item) => item.status !== "Paid")
         .reduce((sum, item) => sum + Number(item.amount || 0), 0),
-      paidCount: paid.length
-    }
-  }, [payouts])
+      paidCount: paid.length,
+    };
+  }, [payouts]);
 
   return (
     <SafeAreaView className="flex-1 bg-[#FCF9F8]">
       <Toast message={toast} onDone={() => setToast(null)} />
-      <ScrollView className="flex-1 p-5" contentContainerStyle={{ paddingBottom: 30 }}>
-        <Text className="text-3xl font-black text-[#2A5C43]">Farmer Payouts</Text>
-        <Text className="text-gray-500 mt-1 mb-5">Disburse earnings via M-Pesa, bank transfer or cash.</Text>
+      <ScrollView
+        className="flex-1 p-5"
+        contentContainerStyle={{ paddingBottom: 30 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => refresh(true)}
+            colors={["#2A5C43"]}
+            tintColor="#2A5C43"
+          />
+        }
+      >
+        <Text className="text-3xl font-black text-[#2A5C43]">
+          Farmer Payouts
+        </Text>
+        <Text className="text-gray-500 mt-1 mb-5">
+          Disburse earnings via M-Pesa, bank transfer or cash.
+        </Text>
 
         <View className="flex-row gap-3 mb-4">
-          <Metric label="Disbursed" value={`KES ${totals.paidAmount.toLocaleString()}`} icon="check-circle" />
-          <Metric label="In Transit" value={`KES ${totals.pendingAmount.toLocaleString()}`} icon="sync" />
+          <Metric
+            label="Disbursed"
+            value={`KES ${totals.paidAmount.toLocaleString()}`}
+            icon="check-circle"
+          />
+          <Metric
+            label="In Transit"
+            value={`KES ${totals.pendingAmount.toLocaleString()}`}
+            icon="sync"
+          />
         </View>
 
         <View className="flex-row gap-2 mb-4">
           <Pressable
             onPress={() => setPayoutMode("single")}
             className={`flex-1 py-2.5 rounded-xl items-center border ${
-              payoutMode === "single" ? "bg-[#2A5C43] border-[#2A5C43]" : "bg-white border-gray-200"
+              payoutMode === "single"
+                ? "bg-[#2A5C43] border-[#2A5C43]"
+                : "bg-white border-gray-200"
             }`}
           >
-            <Text className={`font-black ${payoutMode === "single" ? "text-white" : "text-gray-500"}`}>Single Payout</Text>
+            <Text
+              className={`font-black ${payoutMode === "single" ? "text-white" : "text-gray-500"}`}
+            >
+              Single Payout
+            </Text>
           </Pressable>
           <Pressable
             onPress={() => setPayoutMode("batch")}
             className={`flex-1 py-2.5 rounded-xl items-center border ${
-              payoutMode === "batch" ? "bg-[#2A5C43] border-[#2A5C43]" : "bg-white border-gray-200"
+              payoutMode === "batch"
+                ? "bg-[#2A5C43] border-[#2A5C43]"
+                : "bg-white border-gray-200"
             }`}
           >
-            <Text className={`font-black ${payoutMode === "batch" ? "text-white" : "text-gray-500"}`}>Batch Payout</Text>
+            <Text
+              className={`font-black ${payoutMode === "batch" ? "text-white" : "text-gray-500"}`}
+            >
+              Batch Payout
+            </Text>
           </Pressable>
         </View>
 
         {payoutMode === "single" ? (
           <View className="bg-white rounded-2xl p-4 border border-gray-200 mb-5">
-            <Text className="text-lg font-black text-[#2A5C43] mb-3">New Payout</Text>
+            <Text className="text-lg font-black text-[#2A5C43] mb-3">
+              New Payout
+            </Text>
 
             <Pressable
               className="flex-row items-center justify-between bg-[#F9F9F9] border border-gray-200 rounded-xl px-4 py-3.5 mb-3"
               onPress={() => setShowFarmerPicker(true)}
             >
-              <Text className={selectedFarmer ? "text-gray-800 font-bold" : "text-gray-400"}>
+              <Text
+                className={
+                  selectedFarmer ? "text-gray-800 font-bold" : "text-gray-400"
+                }
+              >
                 {selectedFarmer ? selectedFarmer.name : "Select farmer"}
               </Text>
               <MaterialIcons name="arrow-drop-down" size={20} color="#6b7280" />
@@ -297,10 +450,14 @@ export default function ManagerDisburse() {
                   key={item}
                   onPress={() => setMethod(item)}
                   className={`flex-1 border rounded-xl py-3 items-center ${
-                    method === item ? "bg-[#2A5C43] border-[#2A5C43]" : "bg-[#F9F9F9] border-gray-200"
+                    method === item
+                      ? "bg-[#2A5C43] border-[#2A5C43]"
+                      : "bg-[#F9F9F9] border-gray-200"
                   }`}
                 >
-                  <Text className={`font-black capitalize ${method === item ? "text-white" : "text-gray-500"}`}>
+                  <Text
+                    className={`font-black capitalize ${method === item ? "text-white" : "text-gray-500"}`}
+                  >
                     {item}
                   </Text>
                 </Pressable>
@@ -313,7 +470,11 @@ export default function ManagerDisburse() {
                 value={phone}
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
-                placeholder={method === "mpesa" ? "M-Pesa phone (e.g. +254 712 345 678)" : "Airtel phone (e.g. +254 732 345 678)"}
+                placeholder={
+                  method === "mpesa"
+                    ? "M-Pesa phone (e.g. +254 712 345 678)"
+                    : "Airtel phone (e.g. +254 732 345 678)"
+                }
                 placeholderTextColor="#A1A1AA"
               />
             ) : null}
@@ -350,12 +511,16 @@ export default function ManagerDisburse() {
               onPress={submitPayout}
               disabled={submitting}
             >
-              <Text className="text-white font-black">{submitting ? "Processing..." : "Send Payout"}</Text>
+              <Text className="text-white font-black">
+                {submitting ? "Processing..." : "Send Payout"}
+              </Text>
             </Pressable>
           </View>
         ) : (
           <View className="bg-white rounded-2xl p-4 border border-gray-200 mb-5">
-            <Text className="text-lg font-black text-[#2A5C43] mb-3">Batch Payout</Text>
+            <Text className="text-lg font-black text-[#2A5C43] mb-3">
+              Batch Payout
+            </Text>
 
             <View className="flex-row gap-2 mb-3">
               {METHODS.map((item) => (
@@ -363,10 +528,14 @@ export default function ManagerDisburse() {
                   key={item}
                   onPress={() => setMethod(item)}
                   className={`flex-1 border rounded-xl py-3 items-center ${
-                    method === item ? "bg-[#2A5C43] border-[#2A5C43]" : "bg-[#F9F9F9] border-gray-200"
+                    method === item
+                      ? "bg-[#2A5C43] border-[#2A5C43]"
+                      : "bg-[#F9F9F9] border-gray-200"
                   }`}
                 >
-                  <Text className={`font-black capitalize ${method === item ? "text-white" : "text-gray-500"}`}>
+                  <Text
+                    className={`font-black capitalize ${method === item ? "text-white" : "text-gray-500"}`}
+                  >
                     {item}
                   </Text>
                 </Pressable>
@@ -382,27 +551,43 @@ export default function ManagerDisburse() {
               placeholderTextColor="#A1A1AA"
             />
 
-            <Text className="text-[11px] font-bold text-gray-500 uppercase mb-2">Select Farmers & Details</Text>
+            <Text className="text-[11px] font-bold text-gray-500 uppercase mb-2">
+              Select Farmers & Details
+            </Text>
             <View className="border border-gray-100 rounded-xl overflow-hidden mb-4 bg-[#F9F9F9]">
               {farmers.map((farmer) => {
-                const isSelected = batchSelectedFarmers.includes(farmer.id)
-                const details = batchDetails[farmer.id] || { amount: "", phone: "", bankCode: "", accountNumber: "" }
+                const isSelected = batchSelectedFarmers.includes(farmer.id);
+                const details = batchDetails[farmer.id] || {
+                  amount: "",
+                  phone: "",
+                  bankCode: "",
+                  accountNumber: "",
+                };
 
                 return (
-                  <View key={farmer.id} className="border-b border-gray-100 p-3">
+                  <View
+                    key={farmer.id}
+                    className="border-b border-gray-100 p-3"
+                  >
                     <Pressable
                       className="flex-row items-center justify-between"
                       onPress={() => toggleFarmerSelection(farmer)}
                     >
                       <View className="flex-row items-center gap-2 flex-1">
                         <MaterialIcons
-                          name={isSelected ? "check-box" : "check-box-outline-blank"}
+                          name={
+                            isSelected ? "check-box" : "check-box-outline-blank"
+                          }
                           size={24}
                           color={isSelected ? "#2A5C43" : "#6b7280"}
                         />
                         <View>
-                          <Text className="text-gray-800 font-bold">{farmer.name}</Text>
-                          <Text className="text-gray-500 text-xs">{farmer.location || "No location"}</Text>
+                          <Text className="text-gray-800 font-bold">
+                            {farmer.name}
+                          </Text>
+                          <Text className="text-gray-500 text-xs">
+                            {farmer.location || "No location"}
+                          </Text>
                         </View>
                       </View>
                     </Pressable>
@@ -412,7 +597,9 @@ export default function ManagerDisburse() {
                         <TextInput
                           className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-gray-800 text-sm font-bold"
                           value={details.amount}
-                          onChangeText={(val) => updateFarmerDetail(farmer.id, "amount", val)}
+                          onChangeText={(val) =>
+                            updateFarmerDetail(farmer.id, "amount", val)
+                          }
                           keyboardType="numeric"
                           placeholder="Amount (KES)"
                           placeholderTextColor="#A1A1AA"
@@ -421,9 +608,15 @@ export default function ManagerDisburse() {
                           <TextInput
                             className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-gray-800 text-sm"
                             value={details.phone}
-                            onChangeText={(val) => updateFarmerDetail(farmer.id, "phone", val)}
+                            onChangeText={(val) =>
+                              updateFarmerDetail(farmer.id, "phone", val)
+                            }
                             keyboardType="phone-pad"
-                            placeholder={method === "mpesa" ? "M-Pesa phone (e.g. +254 712 345 678)" : "Airtel phone"}
+                            placeholder={
+                              method === "mpesa"
+                                ? "M-Pesa phone (e.g. +254 712 345 678)"
+                                : "Airtel phone"
+                            }
                             placeholderTextColor="#A1A1AA"
                           />
                         )}
@@ -432,14 +625,22 @@ export default function ManagerDisburse() {
                             <TextInput
                               className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-gray-800 text-sm"
                               value={details.bankCode}
-                              onChangeText={(val) => updateFarmerDetail(farmer.id, "bankCode", val)}
+                              onChangeText={(val) =>
+                                updateFarmerDetail(farmer.id, "bankCode", val)
+                              }
                               placeholder="Bank code (e.g. 000013)"
                               placeholderTextColor="#A1A1AA"
                             />
                             <TextInput
                               className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-gray-800 text-sm"
                               value={details.accountNumber}
-                              onChangeText={(val) => updateFarmerDetail(farmer.id, "accountNumber", val)}
+                              onChangeText={(val) =>
+                                updateFarmerDetail(
+                                  farmer.id,
+                                  "accountNumber",
+                                  val,
+                                )
+                              }
                               placeholder="Account number"
                               placeholderTextColor="#A1A1AA"
                             />
@@ -448,7 +649,7 @@ export default function ManagerDisburse() {
                       </View>
                     )}
                   </View>
-                )
+                );
               })}
             </View>
 
@@ -466,37 +667,62 @@ export default function ManagerDisburse() {
               disabled={submitting}
             >
               <Text className="text-white font-black">
-                {submitting ? "Processing..." : `Send Batch Payout (${batchSelectedFarmers.length} Farmers)`}
+                {submitting
+                  ? "Processing..."
+                  : `Send Batch Payout (${batchSelectedFarmers.length} Farmers)`}
               </Text>
             </Pressable>
           </View>
         )}
 
-        <Text className="text-xl font-black text-[#2A5C43] mb-2">Payout History</Text>
+        <Text className="text-xl font-black text-[#2A5C43] mb-2">
+          Payout History
+        </Text>
         {payouts.map((item) => (
-          <View key={item.id} className="bg-white rounded-2xl p-4 border border-gray-200 mb-3">
+          <View
+            key={item.id}
+            className="bg-white rounded-2xl p-4 border border-gray-200 mb-3"
+          >
             <View className="flex-row items-start justify-between gap-3">
               <View className="flex-1">
-                <Text className="text-lg font-black text-[#2A5C43]">{item.farmer || "Farmer"}</Text>
-                <Text className="text-gray-500 text-xs mt-0.5 font-mono">#{shortHash(item.id)}</Text>
-                <Text className="text-gray-700 mt-1 capitalize">{item.method} payout</Text>
+                <Text className="text-lg font-black text-[#2A5C43]">
+                  {item.farmer || "Farmer"}
+                </Text>
+                <Text className="text-gray-500 text-xs mt-0.5 font-mono">
+                  #{shortHash(item.id)}
+                </Text>
+                <Text className="text-gray-700 mt-1 capitalize">
+                  {item.method} payout
+                </Text>
               </View>
               <StatusPill status={item.status} />
             </View>
-            <Text className="text-gray-900 font-black mt-3">KES {Number(item.amount || 0).toLocaleString()}</Text>
+            <Text className="text-gray-900 font-black mt-3">
+              KES {Number(item.amount || 0).toLocaleString()}
+            </Text>
             <Text className="text-gray-500 text-sm mt-1">
-              {new Date(item.created_at).toLocaleString()} {item.reference ? `• ${item.reference}` : ""}
+              {new Date(item.created_at).toLocaleString()}{" "}
+              {item.reference ? `• ${item.reference}` : ""}
             </Text>
             {item.status !== "Paid" && item.status !== "Failed" ? (
               updatingId === item.id ? (
                 <View className="flex-row gap-2 mt-3 items-center justify-center py-2">
                   <ActivityIndicator size="small" color="#2A5C43" />
-                  <Text className="text-gray-500 font-bold text-sm">Updating…</Text>
+                  <Text className="text-gray-500 font-bold text-sm">
+                    Updating…
+                  </Text>
                 </View>
               ) : (
                 <View className="flex-row gap-2 mt-3">
-                  <Action label="Mark Paid" onPress={() => updateStatus(item.id, "Paid")} />
-                  <Action label="Fail" tone="danger" onPress={() => updateStatus(item.id, "Failed")} />
+                  <Action
+                    label="Mark Paid"
+                    onPress={() => updateStatus(item.id, "Paid")}
+                  />
+                  <Action
+                    label="Fail"
+                    tone="danger"
+                    onPress={() => updateStatus(item.id, "Failed")}
+                  />
                 </View>
               )
             ) : null}
@@ -505,9 +731,17 @@ export default function ManagerDisburse() {
       </ScrollView>
 
       <Modal visible={showFarmerPicker} transparent animationType="slide">
-        <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowFarmerPicker(false)}>
-          <View className="bg-white rounded-t-3xl p-4 max-h-[70%]" onStartShouldSetResponder={() => true}>
-            <Text className="text-xl font-black text-[#2A5C43] mb-3">Select farmer</Text>
+        <Pressable
+          className="flex-1 bg-black/40 justify-end"
+          onPress={() => setShowFarmerPicker(false)}
+        >
+          <View
+            className="bg-white rounded-t-3xl p-4 max-h-[70%]"
+            onStartShouldSetResponder={() => true}
+          >
+            <Text className="text-xl font-black text-[#2A5C43] mb-3">
+              Select farmer
+            </Text>
             <ScrollView className="max-h-[60%]">
               {farmers.map((farmer) => (
                 <Pressable
@@ -516,10 +750,18 @@ export default function ManagerDisburse() {
                   className="flex-row items-center justify-between px-2 py-3 border-b border-gray-100"
                 >
                   <View className="flex-1">
-                    <Text className="text-gray-800 font-bold">{farmer.name}</Text>
-                    <Text className="text-gray-500 text-sm">{farmer.location || "No location"}</Text>
+                    <Text className="text-gray-800 font-bold">
+                      {farmer.name}
+                    </Text>
+                    <Text className="text-gray-500 text-sm">
+                      {farmer.location || "No location"}
+                    </Text>
                   </View>
-                  <MaterialIcons name="chevron-right" size={20} color="#6b7280" />
+                  <MaterialIcons
+                    name="chevron-right"
+                    size={20}
+                    color="#6b7280"
+                  />
                 </Pressable>
               ))}
             </ScrollView>
@@ -527,45 +769,63 @@ export default function ManagerDisburse() {
         </Pressable>
       </Modal>
     </SafeAreaView>
-  )
+  );
 }
 
-function Metric({ label, value, icon }: { label: string; value: string; icon: keyof typeof MaterialIcons.glyphMap }) {
+function Metric({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: string;
+  icon: keyof typeof MaterialIcons.glyphMap;
+}) {
   return (
     <View className="bg-white rounded-2xl p-4 border border-gray-200 flex-1 min-w-[150px]">
       <MaterialIcons name={icon} size={21} color="#2A5C43" />
-      <Text className="text-[10px] text-gray-500 uppercase font-black mt-3">{label}</Text>
+      <Text className="text-[10px] text-gray-500 uppercase font-black mt-3">
+        {label}
+      </Text>
       <Text className="text-[#2A5C43] text-lg font-black mt-1">{value}</Text>
     </View>
-  )
+  );
 }
 
 function StatusPill({ status }: { status: string }) {
-  const done = status === "Paid"
-  const bad = status === "Failed"
+  const done = status === "Paid";
+  const bad = status === "Failed";
   return (
-    <View className={`rounded-full px-3 py-1 ${bad ? "bg-red-100" : done ? "bg-[#E7F5EE]" : "bg-amber-100"}`}>
-      <Text className={`text-[11px] font-black uppercase ${bad ? "text-red-700" : done ? "text-[#2A5C43]" : "text-amber-700"}`}>
+    <View
+      className={`rounded-full px-3 py-1 ${bad ? "bg-red-100" : done ? "bg-[#E7F5EE]" : "bg-amber-100"}`}
+    >
+      <Text
+        className={`text-[11px] font-black uppercase ${bad ? "text-red-700" : done ? "text-[#2A5C43]" : "text-amber-700"}`}
+      >
         {status}
       </Text>
     </View>
-  )
+  );
 }
 
 function Action({
   label,
   onPress,
-  tone = "primary"
+  tone = "primary",
 }: {
-  label: string
-  onPress: () => void
-  tone?: "primary" | "danger"
+  label: string;
+  onPress: () => void;
+  tone?: "primary" | "danger";
 }) {
-  const classes = tone === "primary" ? "bg-[#2A5C43]" : "bg-white border border-red-300"
-  const text = tone === "primary" ? "text-white" : "text-red-600"
+  const classes =
+    tone === "primary" ? "bg-[#2A5C43]" : "bg-white border border-red-300";
+  const text = tone === "primary" ? "text-white" : "text-red-600";
   return (
-    <Pressable onPress={onPress} className={`flex-1 rounded-xl py-3 items-center ${classes}`}>
+    <Pressable
+      onPress={onPress}
+      className={`flex-1 rounded-xl py-3 items-center ${classes}`}
+    >
       <Text className={`font-black ${text}`}>{label}</Text>
     </Pressable>
-  )
+  );
 }

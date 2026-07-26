@@ -1,86 +1,146 @@
-import { useFocusRefresh } from "../../lib/polling"
-import { MaterialIcons } from "@expo/vector-icons"
-import { Image } from "expo-image"
-import * as Linking from "expo-linking"
-import { useFocusEffect, useRouter } from "expo-router"
-import * as WebBrowser from "expo-web-browser"
-import { useCallback, useRef, useState } from "react"
-import { Alert, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
+import { useFocusRefresh } from "../../lib/polling";
+import { MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Image } from "expo-image";
+import * as Linking from "expo-linking";
+import { useFocusEffect, useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { shortHash } from "../../components/Toast"
-import api from "../../lib/api"
+import { shortHash } from "../../components/Toast";
+import PaystackModal from "../../components/PaystackModal";
+import api, { clearApiCache, fetchWithCache } from "../../lib/api";
 
 type Order = {
-  id: number
-  farmer?: string | null
-  yield_id?: number | null
-  quantity: string
-  produce: string
-  unit_price: string
-  total_amount: string
-  status: string
-  payment_status: string | null
-  tracking_location?: string
-  estimated_delivery?: string
-  photos?: string[]
-  created_at: string
-}
+  id: number;
+  farmer?: string | null;
+  yield_id?: number | null;
+  quantity: string;
+  produce: string;
+  unit_price: string;
+  total_amount: string;
+  status: string;
+  payment_status: string | null;
+  tracking_location?: string;
+  estimated_delivery?: string;
+  photos?: string[];
+  created_at: string;
+};
 
 export default function BuyerOrders() {
-  const [orders, setOrders] = useState<Order[]>([])
-  const [payingOrderId, setPayingOrderId] = useState<number | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const router = useRouter()
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [payingOrderId, setPayingOrderId] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const router = useRouter();
 
-  const refresh = useCallback(async () => {
+  const loadFromCache = useCallback(() => {
+    AsyncStorage.getItem("buyer_orders_cache").then((cached) => {
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          setOrders(parsed);
+          setIsLoading(false);
+        } catch {}
+      }
+    });
+  }, []);
+
+  // Instant 0ms hydration on mount & tab focus
+  useFocusEffect(
+    useCallback(() => {
+      loadFromCache();
+      refresh();
+    }, [loadFromCache]),
+  );
+
+  const refresh = useCallback(async (isManual = false) => {
+    if (isManual) setRefreshing(true);
     try {
-      const { data } = await api.get("/orders")
-      setOrders(data)
+      if (isManual) clearApiCache();
+      const { data } = await fetchWithCache("/orders");
+      setOrders(data);
+      AsyncStorage.setItem("buyer_orders_cache", JSON.stringify(data)).catch(
+        () => {},
+      );
     } catch (error) {
-      console.warn("Failed to load orders:", error)
+      console.warn("Failed to load orders:", error);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
+      setRefreshing(false);
     }
-  }, [])
+  }, []);
 
-  useFocusRefresh(refresh)
+  useFocusRefresh(refresh);
+
+  // Paystack Modal Popup state
+  const [paystackUrl, setPaystackUrl] = useState<string | null>(null);
+  const [paystackRef, setPaystackRef] = useState<string | null>(null);
 
   async function startPayment(order: Order) {
     try {
-      setPayingOrderId(order.id)
-      const returnUrl = Linking.createURL("payment-complete")
+      setPayingOrderId(order.id);
+      const returnUrl = Linking.createURL("payment-complete");
 
       const { data } = await api.post("/payments/initialize", {
         order_id: order.id,
         method: "checkout",
-        callback_url: returnUrl
-      })
+        callback_url: returnUrl,
+      });
 
       if (!data.authorization_url) {
-        throw new Error("Paystack did not return a checkout link.")
+        throw new Error("Paystack did not return a checkout link.");
       }
 
-      await WebBrowser.openAuthSessionAsync(data.authorization_url, returnUrl)
-      await api.post("/payments/verify", { reference: data.reference })
-      await refresh()
+      setPaystackRef(data.reference);
+      setPaystackUrl(data.authorization_url);
     } catch (error: any) {
-      Alert.alert("Payment failed", error?.response?.data?.error || error.message)
-    } finally {
-      setPayingOrderId(null)
+      Alert.alert(
+        "Payment failed",
+        error?.response?.data?.error || error.message,
+      );
+      setPayingOrderId(null);
     }
   }
 
   return (
     <SafeAreaView className="flex-1 bg-[#FCF9F8]">
-      <ScrollView className="flex-1 p-5" contentContainerStyle={{ paddingBottom: 30 }}>
-        <Text className="text-3xl font-black text-[#2A5C43]">Orders & Payments</Text>
-        <Text className="text-gray-500 mt-1 mb-5">Pay securely through Paystack Checkout.</Text>
+      <ScrollView
+        className="flex-1 p-5"
+        contentContainerStyle={{ paddingBottom: 30 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => refresh(true)}
+            colors={["#2A5C43"]}
+            tintColor="#2A5C43"
+          />
+        }
+      >
+        <Text className="text-3xl font-black text-[#2A5C43]">
+          Orders & Payments
+        </Text>
+        <Text className="text-gray-500 mt-1 mb-5">
+          Pay securely through Paystack Checkout.
+        </Text>
 
         {isLoading && (
           <View>
             {[1, 2, 3].map((key) => (
-              <View key={key} className="bg-white rounded-2xl p-4 border border-gray-100 mb-3 opacity-70">
+              <View
+                key={key}
+                className="bg-white rounded-2xl p-4 border border-gray-100 mb-3 opacity-70"
+              >
                 <View className="h-6 w-1/3 bg-gray-200 rounded-full mb-2" />
                 <View className="h-4 w-1/2 bg-gray-200 rounded-full mb-1" />
                 <View className="h-4 w-1/2 bg-gray-200 rounded-full mb-1" />
@@ -96,22 +156,34 @@ export default function BuyerOrders() {
         {!isLoading && orders.length === 0 && (
           <View className="items-center py-16">
             <MaterialIcons name="receipt-long" size={48} color="#d1d5db" />
-            <Text className="text-gray-400 font-black text-lg mt-4">No orders found</Text>
+            <Text className="text-gray-400 font-black text-lg mt-4">
+              No orders found
+            </Text>
           </View>
         )}
 
         {!isLoading &&
           orders.map((order) => {
-            const isPaid = order.status === "Paid" || order.payment_status === "Verified"
-            const processingPayment = payingOrderId === order.id
+            const isPaid =
+              order.status === "Paid" || order.payment_status === "Verified";
+            const processingPayment = payingOrderId === order.id;
 
             return (
-              <View key={order.id} className="bg-white rounded-2xl p-4 border border-gray-200 mb-3">
+              <View
+                key={order.id}
+                className="bg-white rounded-2xl p-4 border border-gray-200 mb-3"
+              >
                 <OrderPhotoCarousel photos={order.photos || []} />
-                <Text className="text-lg font-black text-[#2A5C43]">Order #{shortHash(order.id)}</Text>
+                <Text className="text-lg font-black text-[#2A5C43]">
+                  Order #{shortHash(order.id)}
+                </Text>
                 <Text className="text-gray-700 mt-1">{order.produce}</Text>
-                <Text className="text-gray-700">Qty: {Number(order.quantity).toLocaleString()} kg</Text>
-                <Text className="text-gray-700">Unit Price: KES {Number(order.unit_price).toLocaleString()}</Text>
+                <Text className="text-gray-700">
+                  Qty: {Number(order.quantity).toLocaleString()} kg
+                </Text>
+                <Text className="text-gray-700">
+                  Unit Price: KES {Number(order.unit_price).toLocaleString()}
+                </Text>
                 <Text className="text-gray-700">
                   Fulfillment:{" "}
                   {order.farmer
@@ -122,13 +194,16 @@ export default function BuyerOrders() {
                   Total: KES {Number(order.total_amount).toLocaleString()}
                 </Text>
                 <Text className="text-sm mt-1 text-gray-500">
-                  Status: {isPaid ? "Paid" : order.status} | {new Date(order.created_at).toLocaleString()}
+                  Status: {isPaid ? "Paid" : order.status} |{" "}
+                  {new Date(order.created_at).toLocaleString()}
                 </Text>
 
                 {!isPaid ? (
                   <Pressable
                     className={`mt-4 rounded-xl py-3.5 px-4 items-center border ${
-                      processingPayment ? "bg-[#6d9a86] border-[#6d9a86]" : "bg-[#2A5C43] border-[#1f4934]"
+                      processingPayment
+                        ? "bg-[#6d9a86] border-[#6d9a86]"
+                        : "bg-[#2A5C43] border-[#1f4934]"
                     }`}
                     onPress={() => startPayment(order)}
                     disabled={processingPayment}
@@ -136,7 +211,9 @@ export default function BuyerOrders() {
                     <View className="flex-row items-center gap-2">
                       <MaterialIcons name="lock" size={18} color="#ffffff" />
                       <Text className="text-white font-black text-base">
-                        {processingPayment ? "Opening Paystack..." : "Pay with Paystack"}
+                        {processingPayment
+                          ? "Opening Paystack..."
+                          : "Pay with Paystack"}
                       </Text>
                     </View>
                     {!processingPayment ? (
@@ -150,30 +227,53 @@ export default function BuyerOrders() {
                     className="mt-3 rounded-xl py-3 items-center bg-[#125C3F]"
                     onPress={() => router.push("/buyer/track")}
                   >
-                    <Text className="text-white font-black">Track Shipment</Text>
+                    <Text className="text-white font-black">
+                      Track Shipment
+                    </Text>
                   </Pressable>
                 )}
               </View>
-            )
+            );
           })}
       </ScrollView>
+
+      <PaystackModal
+        visible={Boolean(paystackUrl)}
+        authUrl={paystackUrl}
+        reference={paystackRef}
+        onSuccess={async () => {
+          setPaystackUrl(null);
+          setPaystackRef(null);
+          setPayingOrderId(null);
+          await refresh();
+          Alert.alert("Payment Received ✓", "Thank you! Your payment has been verified.");
+        }}
+        onCancel={() => {
+          setPaystackUrl(null);
+          setPaystackRef(null);
+          setPayingOrderId(null);
+        }}
+      />
     </SafeAreaView>
-  )
+  );
 }
 
 function OrderPhotoCarousel({ photos }: { photos: string[] }) {
-  const scrollRef = useRef<ScrollView>(null)
-  const { width } = useWindowDimensions()
-  const [activeIndex, setActiveIndex] = useState(0)
-  const [carouselWidth, setCarouselWidth] = useState(Math.min(width - 72, 720))
+  const scrollRef = useRef<ScrollView>(null);
+  const { width } = useWindowDimensions();
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [carouselWidth, setCarouselWidth] = useState(Math.min(width - 72, 720));
 
-  if (!photos.length) return null
+  if (!photos.length) return null;
 
   const goToPhoto = (index: number) => {
-    const nextIndex = (index + photos.length) % photos.length
-    setActiveIndex(nextIndex)
-    scrollRef.current?.scrollTo({ x: nextIndex * carouselWidth, animated: true })
-  }
+    const nextIndex = (index + photos.length) % photos.length;
+    setActiveIndex(nextIndex);
+    scrollRef.current?.scrollTo({
+      x: nextIndex * carouselWidth,
+      animated: true,
+    });
+  };
 
   return (
     <View
@@ -186,8 +286,10 @@ function OrderPhotoCarousel({ photos }: { photos: string[] }) {
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={(event) => {
-          const nextIndex = Math.round(event.nativeEvent.contentOffset.x / carouselWidth)
-          setActiveIndex(Math.max(0, Math.min(nextIndex, photos.length - 1)))
+          const nextIndex = Math.round(
+            event.nativeEvent.contentOffset.x / carouselWidth,
+          );
+          setActiveIndex(Math.max(0, Math.min(nextIndex, photos.length - 1)));
         }}
       >
         {photos.map((uri, index) => (
@@ -225,5 +327,5 @@ function OrderPhotoCarousel({ photos }: { photos: string[] }) {
         </>
       ) : null}
     </View>
-  )
+  );
 }
