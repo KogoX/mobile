@@ -1,13 +1,16 @@
 import { useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useCallback, useEffect, useState } from "react";
-import { FlatList, RefreshControl, Text, View } from "react-native";
+import { useCallback, useState } from "react";
+import { FlatList, RefreshControl, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import api, { clearApiCache, fetchWithCache } from "../../lib/api";
+import api, { clearApiCache, fetchWithCache, peekCache } from "../../lib/api";
 import { useFocusRefresh } from "../../lib/polling";
+import { getSessionUser } from "../../lib/session";
 import { shortHash } from "../../components/Toast";
+import PeriodSelector, { PeriodFilter } from "../../components/PeriodSelector";
+import { generateAndSharePDF } from "../../lib/pdfReport";
 
 type YieldItem = {
   id: string;
@@ -20,52 +23,100 @@ type YieldItem = {
 };
 
 export default function FarmerHistory() {
-  const [yields, setYields] = useState<YieldItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [yields, setYields] = useState<YieldItem[]>(() => peekCache("/yields") || []);
+  const [isLoading, setIsLoading] = useState(yields.length === 0);
   const [refreshing, setRefreshing] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [userName, setUserName] = useState("Farmer");
+  const [userUniqueId, setUserUniqueId] = useState("");
+
+  const [period, setPeriod] = useState<PeriodFilter>({
+    preset: "all",
+    label: "All Time",
+  });
+
+  const loadUser = useCallback(() => {
+    getSessionUser().then((u) => {
+      if (u) {
+        setUserName(u.name || "Farmer");
+        setUserUniqueId(u.unique_id || "");
+      }
+    });
+  }, []);
 
   const loadFromCache = useCallback(() => {
     AsyncStorage.getItem("farmer_yields_cache").then((cached) => {
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
-          setYields(parsed);
-          setIsLoading(false);
+          if (yields.length === 0) {
+            setYields(parsed);
+            setIsLoading(false);
+          }
         } catch {}
       }
     });
-  }, []);
+  }, [yields.length]);
 
-  // Instant 0ms hydration from local cache on mount and tab focus
-  useFocusEffect(
-    useCallback(() => {
-      loadFromCache();
-      refresh();
-    }, [loadFromCache]),
+  const refresh = useCallback(
+    async (isManual = false) => {
+      if (isManual) setRefreshing(true);
+      try {
+        if (isManual) clearApiCache();
+
+        let queryUrl = "/yields";
+        const params: string[] = [];
+        if (period.startDate) params.push(`startDate=${period.startDate}`);
+        if (period.endDate) params.push(`endDate=${period.endDate}`);
+        if (params.length > 0) queryUrl += `?${params.join("&")}`;
+
+        const { data } = await fetchWithCache(queryUrl, { preferCache: !isManual });
+        setYields(data);
+        if (period.preset === "all") {
+          AsyncStorage.setItem("farmer_yields_cache", JSON.stringify(data)).catch(() => {});
+        }
+      } catch (err: any) {
+        // Silent catch: preserved from local storage cache
+      } finally {
+        setIsLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [period],
   );
 
-  const refresh = useCallback(async (isManual = false) => {
-    if (isManual) setRefreshing(true);
-    try {
-      if (isManual) clearApiCache();
-      const { data } = await fetchWithCache("/yields");
-      setYields(data);
-      AsyncStorage.setItem("farmer_yields_cache", JSON.stringify(data)).catch(
-        () => {},
-      );
-    } catch (err: any) {
-      // Silent catch: preserved from local storage cache
-    } finally {
-      setIsLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadUser();
+      loadFromCache();
+      refresh();
+    }, [loadUser, loadFromCache, refresh]),
+  );
 
   useFocusRefresh(refresh);
 
   const onRefresh = useCallback(() => {
     refresh(true);
   }, [refresh]);
+
+  const handleExportPDF = async () => {
+    if (yields.length === 0 || exporting) return;
+    setExporting(true);
+    try {
+      await generateAndSharePDF({
+        title: "Harvest Uploads Report",
+        reportType: "yields",
+        userName,
+        userUniqueId,
+        periodLabel: period.label,
+        items: yields,
+      });
+    } catch (e) {
+      console.warn("PDF generation error:", e);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-[#FCF9F8]">
@@ -87,12 +138,37 @@ export default function FarmerHistory() {
         }
         ListHeaderComponent={
           <View>
-            <Text className="text-3xl font-black text-[#2A5C43]">
-              Upload History
-            </Text>
-            <Text className="text-gray-500 mt-1 mb-5">
-              All your historical harvest records and their status.
-            </Text>
+            <View className="flex-row items-center justify-between">
+              <View className="flex-1 mr-3">
+                <Text className="text-3xl font-black text-[#2A5C43]">
+                  Upload History
+                </Text>
+                <Text className="text-gray-500 mt-0.5 mb-3">
+                  Harvest records and delivery status.
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={handleExportPDF}
+                disabled={yields.length === 0 || exporting}
+                style={{ backgroundColor: yields.length > 0 ? "#2A5C43" : "#9CA3AF" }}
+                className="px-3.5 py-2.5 rounded-xl flex-row items-center shadow-sm"
+              >
+                <MaterialIcons name="picture-as-pdf" size={18} color="#FFFFFF" />
+                <Text className="text-white font-bold text-xs ml-1.5">
+                  {exporting ? "PDF..." : "PDF Report"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <PeriodSelector
+              selectedPeriod={period}
+              onPeriodChange={(newPeriod) => {
+                setPeriod(newPeriod);
+                setIsLoading(true);
+              }}
+              accentColor="#2A5C43"
+            />
 
             {isLoading && (
               <View className="items-center py-10 bg-white rounded-2xl border border-gray-200">
@@ -112,13 +188,13 @@ export default function FarmerHistory() {
                 No history found
               </Text>
               <Text className="text-gray-400 text-center mt-1">
-                You have not uploaded any yields yet.
+                No yield uploads found for the period: {period.label}.
               </Text>
             </View>
           ) : null
         }
         renderItem={({ item: entry }) => (
-          <View className="bg-white rounded-2xl p-4 border border-gray-200 mb-3">
+          <View className="bg-white rounded-2xl p-4 border border-gray-200 mb-3 shadow-xs">
             <View className="flex-row items-start justify-between">
               <View className="flex-1 mr-2">
                 <Text className="font-black text-[#2A5C43]">

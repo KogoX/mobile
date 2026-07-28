@@ -22,6 +22,8 @@ import { useFocusRefresh } from "../../lib/polling";
 import { notifyNewListing } from "../../lib/notifications";
 import { getSessionUser } from "../../lib/session";
 import NotificationBell from "../../components/NotificationBell";
+import PeriodSelector, { PeriodFilter } from "../../components/PeriodSelector";
+import { generateAndSharePDF } from "../../lib/pdfReport";
 
 type Listing = {
   id: string;
@@ -59,10 +61,41 @@ export default function BuyerDashboard() {
   const [uniqueId, setUniqueId] = useState("");
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [photoModal, setPhotoModal] = useState<string | null>(null);
-  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(() => !_inMemoryMarketCache);
-
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const photoScrollViewRef = useRef<ScrollView>(null);
+
+  const [exportingReport, setExportingReport] = useState(false);
+  const [period, setPeriod] = useState<PeriodFilter>({
+    preset: "all",
+    label: "All Time",
+  });
+
+  const handleExportBuyerReport = async () => {
+    if (exportingReport) return;
+    setExportingReport(true);
+    try {
+      let queryUrl = "/orders";
+      const params: string[] = [];
+      if (period.startDate) params.push(`startDate=${period.startDate}`);
+      if (period.endDate) params.push(`endDate=${period.endDate}`);
+      if (params.length > 0) queryUrl += `?${params.join("&")}`;
+
+      const { data } = await api.get(queryUrl);
+      await generateAndSharePDF({
+        title: "Buyer Procurement Statement",
+        reportType: "buyer_procurement",
+        userName: buyerName || "Buyer",
+        userUniqueId: uniqueId,
+        periodLabel: period.label,
+        items: data || activeOrders,
+      });
+    } catch (e: any) {
+      console.warn("Buyer report export error:", e);
+    } finally {
+      setExportingReport(false);
+    }
+  };
 
   const approvedListings = useMemo(
     () =>
@@ -279,12 +312,28 @@ export default function BuyerDashboard() {
                 </Text>
                 <NotificationBell color="#ffffff" />
               </View>
-              <Text className="text-white text-3xl font-black">
-                Avocado Market
-              </Text>
-              <Text className="text-[#D7F3E5] mt-1">
-                Verified Kenyan harvests, ready for export
-              </Text>
+              <View className="flex-row items-center justify-between mt-1">
+                <View>
+                  <Text className="text-white text-3xl font-black">
+                    Avocado Market
+                  </Text>
+                  <Text className="text-[#D7F3E5] mt-0.5 text-xs">
+                    Verified Kenyan harvests, ready for export
+                  </Text>
+                </View>
+
+                <Pressable
+                  onPress={handleExportBuyerReport}
+                  disabled={exportingReport}
+                  className="bg-[#BDF264] px-3 py-2 rounded-xl flex-row items-center shadow-sm"
+                >
+                  <MaterialIcons name="picture-as-pdf" size={16} color="#125C3F" />
+                  <Text className="text-[#125C3F] font-black text-xs ml-1">
+                    {exportingReport ? "PDF..." : "Report"}
+                  </Text>
+                </Pressable>
+              </View>
+
               {uniqueId ? (
                 <View className="self-start bg-white/15 rounded-full px-3 py-1 mt-3">
                   <Text className="text-white text-[11px] font-black uppercase">
@@ -292,6 +341,14 @@ export default function BuyerDashboard() {
                   </Text>
                 </View>
               ) : null}
+
+              <View className="mt-3">
+                <PeriodSelector
+                  selectedPeriod={period}
+                  onPeriodChange={(newPeriod) => setPeriod(newPeriod)}
+                  accentColor="#BDF264"
+                />
+              </View>
 
               {/* Summary pill */}
               <View className="flex-row gap-3 mt-4">

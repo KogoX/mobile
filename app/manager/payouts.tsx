@@ -1,20 +1,24 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Pressable,
   RefreshControl,
   ScrollView,
   Text,
+  TouchableOpacity,
   View,
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import api, { clearApiCache, fetchWithCache } from "../../lib/api";
+import api, { clearApiCache, fetchWithCache, peekCache } from "../../lib/api";
 import { useFocusRefresh } from "../../lib/polling";
 import { Toast, shortHash } from "../../components/Toast";
+import PeriodSelector, { PeriodFilter } from "../../components/PeriodSelector";
+import { generateAndSharePDF } from "../../lib/pdfReport";
+import { getSessionUser } from "../../lib/session";
 
 type PaymentItem = {
   id: string;
@@ -29,22 +33,31 @@ type PaymentItem = {
 type ToastMsg = { text: string; type: "success" | "error" | "info" } | null;
 
 export default function ManagerPayouts() {
-  const [payments, setPayments] = useState<PaymentItem[]>([]);
+  const [payments, setPayments] = useState<PaymentItem[]>(() => peekCache("/payments") || []);
   const [toast, setToast] = useState<ToastMsg>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [managerName, setManagerName] = useState("Manager");
+
+  const [period, setPeriod] = useState<PeriodFilter>({
+    preset: "all",
+    label: "All Time",
+  });
 
   const loadFromCache = useCallback(() => {
+    getSessionUser().then((u) => setManagerName(u?.name || "Manager"));
     AsyncStorage.getItem("manager_payments_cache").then((cached) => {
       if (cached) {
         try {
-          setPayments(JSON.parse(cached));
+          if (payments.length === 0) {
+            setPayments(JSON.parse(cached));
+          }
         } catch {}
       }
     });
-  }, []);
+  }, [payments.length]);
 
-  // Instant 0ms hydration on mount & tab focus
   useFocusEffect(
     useCallback(() => {
       loadFromCache();
@@ -59,31 +72,61 @@ export default function ManagerPayouts() {
     setToast({ text, type });
   }
 
-  const refresh = useCallback(async (isManual = false) => {
-    if (isManual) {
-      setRefreshing(true);
-      clearApiCache();
-    }
-    try {
-      const { data } = await fetchWithCache("/payments");
-      setPayments(data);
-      AsyncStorage.setItem(
-        "manager_payments_cache",
-        JSON.stringify(data),
-      ).catch(() => {});
-    } catch (error: any) {
-      showToast(
-        error?.response?.data?.error ||
-          error.message ||
-          "Failed to load payments",
-        "error",
-      );
-    } finally {
-      setRefreshing(false);
-    }
-  }, []);
+  const refresh = useCallback(
+    async (isManual = false) => {
+      if (isManual) {
+        setRefreshing(true);
+        clearApiCache();
+      }
+      try {
+        let queryUrl = "/payments";
+        const params: string[] = [];
+        if (period.startDate) params.push(`startDate=${period.startDate}`);
+        if (period.endDate) params.push(`endDate=${period.endDate}`);
+        if (params.length > 0) queryUrl += `?${params.join("&")}`;
+
+        const { data } = await fetchWithCache(queryUrl, { preferCache: !isManual });
+        setPayments(data);
+        if (period.preset === "all") {
+          AsyncStorage.setItem("manager_payments_cache", JSON.stringify(data)).catch(() => {});
+        }
+      } catch (error: any) {
+        showToast(
+          error?.response?.data?.error ||
+            error.message ||
+            "Failed to load payments",
+          "error",
+        );
+      } finally {
+        setRefreshing(false);
+      }
+    },
+    [period],
+  );
 
   useFocusRefresh(refresh);
+
+  const handleExportPDF = async () => {
+    if (payments.length === 0 || exporting) return;
+    setExporting(true);
+    try {
+      await generateAndSharePDF({
+        title: "Manager Settlements & Payments Report",
+        reportType: "payouts",
+        userName: managerName,
+        periodLabel: period.label,
+        items: payments.map((p) => ({
+          ...p,
+          farmer: p.buyer || "Buyer Order",
+          method: "Paystack / Mobile",
+        })),
+      });
+    } catch (e) {
+      console.warn("PDF generation error:", e);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const totals = useMemo(() => {
     const verified = payments.filter((item) => item.status === "Verified");
@@ -147,12 +190,36 @@ export default function ManagerPayouts() {
           />
         }
       >
-        <Text className="text-3xl font-black text-[#2A5C43]">
-          Payments Dashboard
-        </Text>
-        <Text className="text-gray-500 mt-1 mb-5">
-          Confirm buyer payments and release settlement flow.
-        </Text>
+        <View className="flex-row items-center justify-between">
+          <View className="flex-1 mr-2">
+            <Text className="text-3xl font-black text-[#2A5C43]">
+              Payments Dashboard
+            </Text>
+            <Text className="text-gray-500 mt-1 mb-3">
+              Confirm buyer payments and release settlement flow.
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={handleExportPDF}
+            disabled={payments.length === 0 || exporting}
+            style={{ backgroundColor: payments.length > 0 ? "#2A5C43" : "#9CA3AF" }}
+            className="px-3.5 py-2.5 rounded-xl flex-row items-center shadow-sm"
+          >
+            <MaterialIcons name="picture-as-pdf" size={18} color="#FFFFFF" />
+            <Text className="text-white font-bold text-xs ml-1.5">
+              {exporting ? "PDF..." : "PDF Report"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <PeriodSelector
+          selectedPeriod={period}
+          onPeriodChange={(newPeriod) => {
+            setPeriod(newPeriod);
+            refresh();
+          }}
+          accentColor="#2A5C43"
+        />
 
         <View className="flex-row flex-wrap gap-3 mb-4">
           <Metric
@@ -183,13 +250,13 @@ export default function ManagerPayouts() {
         </View>
 
         <Text className="text-xl font-black text-[#2A5C43] mb-2">
-          Recent Transactions
+          Recent Transactions ({period.label})
         </Text>
         {payments.length === 0 ? (
           <View className="bg-white rounded-2xl p-4 border border-gray-200">
-            <Text className="font-black text-[#2A5C43]">No payments yet</Text>
+            <Text className="font-black text-[#2A5C43]">No payments found</Text>
             <Text className="text-gray-500 mt-1">
-              Buyer payments will appear here once submitted.
+              No payments match period: {period.label}.
             </Text>
           </View>
         ) : (
@@ -198,52 +265,57 @@ export default function ManagerPayouts() {
               key={row.id}
               className="bg-white rounded-2xl p-4 border border-gray-200 mb-3"
             >
-              <View className="flex-row items-start justify-between gap-3">
-                <View className="flex-1">
-                  <Text className="text-lg font-black text-[#2A5C43]">
-                    Payment #{shortHash(row.id)}
-                  </Text>
-                  <Text className="text-gray-700 mt-1">
-                    Order #{row.order_id ? shortHash(row.order_id) : "—"} ·{" "}
-                    {row.buyer || "Buyer"}
-                  </Text>
-                  <Text className="text-gray-700">
-                    Qty: {Number(row.quantity || 0).toLocaleString()} kg
+              <View className="flex-row items-center justify-between">
+                <Text className="font-black text-[#2A5C43]">
+                  Order #{shortHash(row.order_id)}
+                </Text>
+                <View className="bg-[#E7F5EE] rounded-full px-3 py-1">
+                  <Text className="text-[#2A5C43] text-xs font-black">
+                    {row.status}
                   </Text>
                 </View>
-                <StatusPill status={row.status} />
               </View>
-              <Text className="text-gray-900 font-black mt-3">
-                KES {Number(row.amount || 0).toLocaleString()}
+
+              <Text className="text-gray-500 text-xs mt-1">
+                Buyer: {row.buyer || "Anonymous Buyer"}
               </Text>
-              <Text className="text-gray-500 mt-1">
+              <Text className="text-gray-500 text-xs">
                 {new Date(row.created_at).toLocaleString()}
               </Text>
-              {updatingId === row.id ? (
-                <View className="flex-row gap-2 mt-4 items-center justify-center py-2">
-                  <ActivityIndicator size="small" color="#2A5C43" />
-                  <Text className="text-gray-500 font-bold text-sm">
-                    Updating…
-                  </Text>
+
+              <Text className="text-gray-900 font-black text-xl mt-3">
+                KES {Number(row.amount).toLocaleString()}
+              </Text>
+
+              {row.status === "Pending" ? (
+                <View className="flex-row gap-2 mt-4 pt-3 border-t border-gray-100">
+                  <Pressable
+                    disabled={updatingId === String(row.id)}
+                    onPress={() => updatePayment(String(row.id), "Verified")}
+                    className="flex-1 bg-[#2A5C43] py-2.5 rounded-xl items-center flex-row justify-center"
+                  >
+                    {updatingId === String(row.id) ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text className="text-white font-black text-xs">Verify</Text>
+                    )}
+                  </Pressable>
+                  <Pressable
+                    disabled={updatingId === String(row.id)}
+                    onPress={() => updatePayment(String(row.id), "Held")}
+                    className="flex-1 bg-[#F59E0B] py-2.5 rounded-xl items-center justify-center"
+                  >
+                    <Text className="text-white font-black text-xs">Hold</Text>
+                  </Pressable>
+                  <Pressable
+                    disabled={updatingId === String(row.id)}
+                    onPress={() => updatePayment(String(row.id), "Rejected")}
+                    className="flex-1 bg-[#EF4444] py-2.5 rounded-xl items-center justify-center"
+                  >
+                    <Text className="text-white font-black text-xs">Reject</Text>
+                  </Pressable>
                 </View>
-              ) : (
-                <View className="flex-row gap-2 mt-4">
-                  <Action
-                    label="Verify"
-                    onPress={() => updatePayment(row.id, "Verified")}
-                  />
-                  <Action
-                    label="Hold"
-                    tone="neutral"
-                    onPress={() => updatePayment(row.id, "Held")}
-                  />
-                  <Action
-                    label="Reject"
-                    tone="danger"
-                    onPress={() => updatePayment(row.id, "Rejected")}
-                  />
-                </View>
-              )}
+              ) : null}
             </View>
           ))
         )}
@@ -262,59 +334,12 @@ function Metric({
   icon: keyof typeof MaterialIcons.glyphMap;
 }) {
   return (
-    <View className="bg-white rounded-2xl p-4 border border-gray-200 min-h-[116px] flex-1 min-w-[155px]">
-      <MaterialIcons name={icon} size={22} color="#2A5C43" />
-      <Text className="text-[10px] text-gray-500 uppercase font-black mt-3">
-        {label}
-      </Text>
-      <Text className="text-[#2A5C43] text-lg font-black mt-1">{value}</Text>
+    <View className="bg-white p-3.5 rounded-2xl border border-gray-200 flex-1 min-w-[100px]">
+      <View className="flex-row items-center justify-between">
+        <Text className="text-gray-500 text-xs font-bold">{label}</Text>
+        <MaterialIcons name={icon} size={16} color="#2A5C43" />
+      </View>
+      <Text className="text-base font-black text-[#2A5C43] mt-1">{value}</Text>
     </View>
-  );
-}
-
-function StatusPill({ status }: { status: string }) {
-  const bad = ["Rejected", "Held"].includes(status);
-  const done = status === "Verified";
-  return (
-    <View
-      className={`rounded-full px-3 py-1 ${bad ? "bg-red-100" : done ? "bg-[#E7F5EE]" : "bg-amber-100"}`}
-    >
-      <Text
-        className={`text-[11px] font-black uppercase ${bad ? "text-red-700" : done ? "text-[#2A5C43]" : "text-amber-700"}`}
-      >
-        {status}
-      </Text>
-    </View>
-  );
-}
-
-function Action({
-  label,
-  onPress,
-  tone = "primary",
-}: {
-  label: string;
-  onPress: () => void;
-  tone?: "primary" | "neutral" | "danger";
-}) {
-  const classes =
-    tone === "primary"
-      ? "bg-[#2A5C43]"
-      : tone === "danger"
-        ? "bg-white border border-red-300"
-        : "bg-white border border-gray-200";
-  const text =
-    tone === "primary"
-      ? "text-white"
-      : tone === "danger"
-        ? "text-red-600"
-        : "text-gray-700";
-  return (
-    <Pressable
-      onPress={onPress}
-      className={`flex-1 rounded-xl py-3 items-center ${classes}`}
-    >
-      <Text className={`font-black ${text}`}>{label}</Text>
-    </Pressable>
   );
 }

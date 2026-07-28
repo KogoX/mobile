@@ -22,6 +22,8 @@ import { notifyNewListing } from "../../lib/notifications";
 import { getSessionUser } from "../../lib/session";
 import NotificationBell from "../../components/NotificationBell";
 import { Toast, shortHash } from "../../components/Toast";
+import PeriodSelector, { PeriodFilter } from "../../components/PeriodSelector";
+import { generateAndSharePDF } from "../../lib/pdfReport";
 
 type Farmer = {
   id: string;
@@ -86,6 +88,42 @@ export default function ManagerDashboard() {
   const [trackingStatus, setTrackingStatus] = useState("");
   const [trackingLocation, setTrackingLocation] = useState("");
   const [estimatedDelivery, setEstimatedDelivery] = useState("");
+
+  const [exportingReport, setExportingReport] = useState(false);
+  const [period, setPeriod] = useState<PeriodFilter>({
+    preset: "all",
+    label: "All Time",
+  });
+
+  const handleExportManagerReport = async () => {
+    if (exportingReport) return;
+    setExportingReport(true);
+    try {
+      const totalHarvestKg = yields.reduce((sum, y) => sum + (Number(y.quantity) || 0), 0);
+      const totalPaymentsKes = payments
+        .filter((p) => p.status === "Verified")
+        .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+      await generateAndSharePDF({
+        title: "Executive Operations Summary",
+        reportType: "manager_summary",
+        userName: managerName || "Manager",
+        periodLabel: period.label,
+        items: yields,
+        extraMetrics: {
+          farmersCount: farmers.length,
+          totalHarvestKg,
+          totalOrdersCount: orders.length,
+          totalPaymentsKes,
+        },
+      });
+      showToast("Executive Report generated", "success");
+    } catch (e: any) {
+      showToast(e.message || "Failed to generate report", "error");
+    } finally {
+      setExportingReport(false);
+    }
+  };
 
   const loadFromCache = useCallback(() => {
     getSessionUser().then((user) => setManagerName(user?.name || "Manager"));
@@ -434,15 +472,35 @@ export default function ManagerDashboard() {
             </Text>
             <NotificationBell color="#2A5C43" />
           </View>
-          <Text className="text-[#2A5C43] text-3xl font-black mb-1">
-            Dashboard
-          </Text>
-          <Text className="text-[#2A5C43] opacity-80">
-            Overview of platform activity
-          </Text>
+          <View className="flex-row items-center justify-between">
+            <View>
+              <Text className="text-[#2A5C43] text-3xl font-black mb-0.5">
+                Dashboard
+              </Text>
+              <Text className="text-[#2A5C43] opacity-80 text-xs">
+                Overview of platform activity
+              </Text>
+            </View>
+
+            <Pressable
+              onPress={handleExportManagerReport}
+              disabled={exportingReport}
+              className="bg-[#2A5C43] px-3.5 py-2.5 rounded-xl flex-row items-center shadow-sm"
+            >
+              <MaterialIcons name="picture-as-pdf" size={18} color="#FFFFFF" />
+              <Text className="text-white font-bold text-xs ml-1.5">
+                {exportingReport ? "PDF..." : "Executive Report"}
+              </Text>
+            </Pressable>
+          </View>
         </View>
 
         <View className="p-5">
+          <PeriodSelector
+            selectedPeriod={period}
+            onPeriodChange={(newPeriod) => setPeriod(newPeriod)}
+            accentColor="#2A5C43"
+          />
           <View className="flex-row flex-wrap gap-3 mb-4">
             <Metric
               label="Farmers"

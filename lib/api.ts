@@ -62,8 +62,26 @@ api.interceptors.response.use(
 
 const memoryCache = new Map<string, { data: any; timestamp: number }>();
 
-export async function fetchWithCache(url: string) {
+export function peekCache<T = any>(url: string): T | null {
   const cached = memoryCache.get(url);
+  return cached ? (cached.data as T) : null;
+}
+
+export async function fetchWithCache(url: string, options?: { preferCache?: boolean; forceRefresh?: boolean }) {
+  const cached = memoryCache.get(url);
+
+  // If cached data exists and preferCache is set, return cached data immediately & revalidate in background
+  if (cached && options?.preferCache && !options?.forceRefresh) {
+    // Background revalidation
+    api.get(url).then((res) => {
+      if (res && res.data) {
+        memoryCache.set(url, { data: res.data, timestamp: Date.now() });
+      }
+    }).catch(() => {});
+
+    return { data: cached.data, isStale: true };
+  }
+
   try {
     const res = await api.get(url);
     if (res && res.data) {
@@ -72,14 +90,14 @@ export async function fetchWithCache(url: string) {
     return res;
   } catch (err: any) {
     if (cached) {
-      return { data: cached.data };
+      return { data: cached.data, isStale: true };
     }
     throw err;
   }
 }
 
 export function clearApiCache() {
-  memoryCache.clear()
+  memoryCache.clear();
 }
 
 export default api
