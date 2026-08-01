@@ -20,6 +20,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { shortHash } from "../../components/Toast";
 import PaystackModal from "../../components/PaystackModal";
 import api, { clearApiCache, fetchWithCache } from "../../lib/api";
+import { generateAndSharePDF } from "../../lib/pdfReport";
+import { getSessionUser } from "../../lib/session";
 
 type Order = {
   id: number;
@@ -44,6 +46,9 @@ export default function BuyerOrders() {
   const [payingOrderId, setPayingOrderId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(() => !_inMemoryOrdersCache);
   const [refreshing, setRefreshing] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [buyerName, setBuyerName] = useState("Buyer");
+  const [userUniqueId, setUserUniqueId] = useState("");
   const router = useRouter();
 
   const loadFromCache = useCallback(() => {
@@ -51,6 +56,10 @@ export default function BuyerOrders() {
       setOrders(_inMemoryOrdersCache);
       setIsLoading(false);
     }
+    getSessionUser().then((user) => {
+      if (user?.name) setBuyerName(user.name);
+      if (user?.unique_id) setUserUniqueId(user.unique_id);
+    });
     AsyncStorage.getItem("buyer_orders_cache").then((cached) => {
       if (cached) {
         try {
@@ -62,6 +71,25 @@ export default function BuyerOrders() {
       }
     });
   }, []);
+
+  const handleExportPDF = async () => {
+    if (orders.length === 0 || exporting) return;
+    setExporting(true);
+    try {
+      await generateAndSharePDF({
+        title: "Buyer Procurement Statement",
+        reportType: "buyer_procurement",
+        userName: buyerName,
+        userUniqueId: userUniqueId,
+        periodLabel: "All Time",
+        items: orders,
+      });
+    } catch (e) {
+      console.warn("Buyer orders PDF error:", e);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // Instant 0ms hydration on mount & tab focus
   useFocusEffect(
@@ -141,12 +169,28 @@ export default function BuyerOrders() {
           />
         }
       >
-        <Text className="text-3xl font-black text-[#2A5C43]">
-          Orders & Payments
-        </Text>
-        <Text className="text-gray-500 mt-1 mb-5">
-          Pay securely through Paystack Checkout.
-        </Text>
+        <View className="flex-row items-center justify-between">
+          <View className="flex-1 mr-3">
+            <Text className="text-3xl font-black text-[#2A5C43]">
+              Orders & Payments
+            </Text>
+            <Text className="text-gray-500 mt-1 mb-5">
+              Pay securely through Paystack Checkout.
+            </Text>
+          </View>
+
+          <Pressable
+            onPress={handleExportPDF}
+            disabled={orders.length === 0 || exporting}
+            style={{ backgroundColor: orders.length > 0 ? "#2A5C43" : "#9CA3AF" }}
+            className="px-3.5 py-2.5 rounded-xl flex-row items-center shadow-sm -mt-4"
+          >
+            <MaterialIcons name="picture-as-pdf" size={18} color="#FFFFFF" />
+            <Text className="text-white font-bold text-xs ml-1.5">
+              {exporting ? "PDF..." : "Statement"}
+            </Text>
+          </Pressable>
+        </View>
 
         {isLoading && (
           <View>
@@ -208,9 +252,21 @@ export default function BuyerOrders() {
                   Total: KES {Number(order.total_amount).toLocaleString()}
                 </Text>
                 <Text className="text-sm mt-1 text-gray-500">
-                  Status: {isPaid ? "Paid" : order.status} |{" "}
-                  {new Date(order.created_at).toLocaleString()}
+                  Status:{" "}
+                  <Text className="font-bold text-[#2A5C43]">
+                    {order.status && order.status !== "Processing" ? order.status : (isPaid ? "Payment Verified" : "Processing")}
+                  </Text>
+                  {" "}• {new Date(order.created_at).toLocaleDateString()}
                 </Text>
+
+                {order.tracking_location ? (
+                  <View className="bg-[#E7F5EE] border border-[#BDE3D0] rounded-xl p-2.5 mt-2 flex-row items-center gap-2">
+                    <MaterialIcons name="my-location" size={16} color="#2A5C43" />
+                    <Text className="text-xs font-bold text-[#2A5C43] flex-1">
+                      Live Transit Location: {order.tracking_location}
+                    </Text>
+                  </View>
+                ) : null}
 
                 {!isPaid ? (
                   <Pressable

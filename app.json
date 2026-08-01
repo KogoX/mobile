@@ -14,6 +14,10 @@
     "android": {
       "usesCleartextTraffic": true
     },
+    "web": {
+      "output": "static",
+      "bundler": "metro"
+    },
     "plugins": [
       [
         "expo-local-authentication",

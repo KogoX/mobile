@@ -15,16 +15,17 @@ let configuredUrl =
   extraUrl ||
   (Platform.OS === "android" ? "http://10.0.2.2:5000" : "http://localhost:5000")
 
-if (Platform.OS === "web" && typeof window !== "undefined") {
+if (!explicitUrl && Platform.OS === "web" && typeof window !== "undefined") {
   configuredUrl = `http://${window.location.hostname}:5000`
 }
 
 const normalizedBase = configuredUrl.startsWith("http") ? configuredUrl : `http://${configuredUrl}`
+const apiBase = normalizedBase.replace(/\/$/, "").replace(/\/api$/, "")
 
-console.log(`[api] backend base URL resolved to: ${normalizedBase}`)
+console.log(`[api] backend base URL resolved to: ${apiBase}`)
 
 const api = axios.create({
-  baseURL: `${normalizedBase.replace(/\/$/, "")}/api`,
+  baseURL: `${apiBase}/api`,
   timeout: 15000,
 });
 

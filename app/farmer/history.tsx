@@ -10,7 +10,6 @@ import { useFocusRefresh } from "../../lib/polling";
 import { getSessionUser } from "../../lib/session";
 import { shortHash } from "../../components/Toast";
 import PeriodSelector, { PeriodFilter } from "../../components/PeriodSelector";
-import { generateAndSharePDF } from "../../lib/pdfReport";
 
 type YieldItem = {
   id: string;
@@ -26,7 +25,6 @@ export default function FarmerHistory() {
   const [yields, setYields] = useState<YieldItem[]>(() => peekCache("/yields") || []);
   const [isLoading, setIsLoading] = useState(yields.length === 0);
   const [refreshing, setRefreshing] = useState(false);
-  const [exporting, setExporting] = useState(false);
   const [userName, setUserName] = useState("Farmer");
   const [userUniqueId, setUserUniqueId] = useState("");
 
@@ -99,25 +97,6 @@ export default function FarmerHistory() {
     refresh(true);
   }, [refresh]);
 
-  const handleExportPDF = async () => {
-    if (yields.length === 0 || exporting) return;
-    setExporting(true);
-    try {
-      await generateAndSharePDF({
-        title: "Harvest Uploads Report",
-        reportType: "yields",
-        userName,
-        userUniqueId,
-        periodLabel: period.label,
-        items: yields,
-      });
-    } catch (e) {
-      console.warn("PDF generation error:", e);
-    } finally {
-      setExporting(false);
-    }
-  };
-
   return (
     <SafeAreaView className="flex-1 bg-[#FCF9F8]">
       <FlatList
@@ -138,8 +117,8 @@ export default function FarmerHistory() {
         }
         ListHeaderComponent={
           <View>
-            <View className="flex-row items-center justify-between">
-              <View className="flex-1 mr-3">
+            <View className="flex-row items-center justify-between mb-1">
+              <View className="flex-1">
                 <Text className="text-3xl font-black text-[#2A5C43]">
                   Upload History
                 </Text>
@@ -147,18 +126,6 @@ export default function FarmerHistory() {
                   Harvest records and delivery status.
                 </Text>
               </View>
-
-              <TouchableOpacity
-                onPress={handleExportPDF}
-                disabled={yields.length === 0 || exporting}
-                style={{ backgroundColor: yields.length > 0 ? "#2A5C43" : "#9CA3AF" }}
-                className="px-3.5 py-2.5 rounded-xl flex-row items-center shadow-sm"
-              >
-                <MaterialIcons name="picture-as-pdf" size={18} color="#FFFFFF" />
-                <Text className="text-white font-bold text-xs ml-1.5">
-                  {exporting ? "PDF..." : "PDF Report"}
-                </Text>
-              </TouchableOpacity>
             </View>
 
             <PeriodSelector

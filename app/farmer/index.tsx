@@ -2,12 +2,14 @@ import { useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RefreshControl, ScrollView, Text, View } from "react-native";
+import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import api, { clearApiCache, fetchWithCache } from "../../lib/api";
 import { usePollingRefresh } from "../../lib/polling";
 import { getSessionUser } from "../../lib/session";
+import PeriodSelector, { PeriodFilter } from "../../components/PeriodSelector";
+import { generateAndSharePDF } from "../../lib/pdfReport";
 
 type YieldItem = {
   id: string | number;
@@ -60,6 +62,13 @@ export default function FarmerDashboard() {
   const [orders, setOrders] = useState<OrderItem[]>(() => _inMemoryFarmerOrders || []);
   const [loadError, setLoadError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+
+  const [exportingReport, setExportingReport] = useState(false);
+  const [reportType, setReportType] = useState<"comprehensive" | "payouts" | "yields">("comprehensive");
+  const [reportPeriod, setReportPeriod] = useState<PeriodFilter>({
+    preset: "all",
+    label: "All Time",
+  });
 
   const loadFromCache = useCallback(() => {
     if (_inMemoryFarmerYields) setYields(_inMemoryFarmerYields);
@@ -222,6 +231,75 @@ export default function FarmerDashboard() {
     return activity.sort((a, b) => b.timestamp - a.timestamp).slice(0, 15);
   }, [yields, payouts, orders]);
 
+  const handleExportPDF = async () => {
+    if (exportingReport) return;
+    setExportingReport(true);
+    try {
+      let filteredYields = yields;
+      let filteredPayouts = payouts;
+
+      if (reportPeriod.startDate) {
+        const params: string[] = [];
+        if (reportPeriod.startDate) params.push(`startDate=${reportPeriod.startDate}`);
+        if (reportPeriod.endDate) params.push(`endDate=${reportPeriod.endDate}`);
+        const q = params.join("&");
+        try {
+          const [yRes, pRes] = await Promise.all([
+            fetchWithCache(`/yields?${q}`),
+            fetchWithCache(`/payouts?${q}`),
+          ]);
+          if (yRes.data) filteredYields = yRes.data;
+          if (pRes.data) filteredPayouts = pRes.data;
+        } catch {
+          const start = new Date(reportPeriod.startDate + "T00:00:00").getTime();
+          const end = new Date((reportPeriod.endDate || reportPeriod.startDate) + "T23:59:59").getTime();
+          filteredYields = yields.filter((item) => {
+            const t = new Date(item.created_at).getTime();
+            return t >= start && t <= end;
+          });
+          filteredPayouts = payouts.filter((item) => {
+            const t = new Date(item.created_at).getTime();
+            return t >= start && t <= end;
+          });
+        }
+      }
+
+      if (reportType === "comprehensive") {
+        await generateAndSharePDF({
+          title: "Comprehensive Farmer Statement",
+          reportType: "farmer_comprehensive",
+          userName: name,
+          userUniqueId: uniqueId,
+          periodLabel: reportPeriod.label,
+          yieldsItems: filteredYields,
+          payoutsItems: filteredPayouts,
+        });
+      } else if (reportType === "payouts") {
+        await generateAndSharePDF({
+          title: "Payout Statement",
+          reportType: "payouts",
+          userName: name,
+          userUniqueId: uniqueId,
+          periodLabel: reportPeriod.label,
+          items: filteredPayouts,
+        });
+      } else {
+        await generateAndSharePDF({
+          title: "Harvest Uploads Report",
+          reportType: "yields",
+          userName: name,
+          userUniqueId: uniqueId,
+          periodLabel: reportPeriod.label,
+          items: filteredYields,
+        });
+      }
+    } catch (e) {
+      console.warn("Farmer PDF export error:", e);
+    } finally {
+      setExportingReport(false);
+    }
+  };
+
   return (
     <SafeAreaView className="flex-1 bg-[#FCF9F8]">
       <ScrollView
@@ -310,6 +388,77 @@ export default function FarmerDashboard() {
               {strongestGrade[1].toLocaleString()} kg
             </Text>
           ) : null}
+        </View>
+
+        {/* PDF Reports Hub */}
+        <View className="bg-white rounded-2xl p-4 border border-gray-200 mb-5 shadow-xs">
+          <View className="flex-row items-center justify-between mb-2">
+            <View className="flex-row items-center">
+              <View className="w-8 h-8 rounded-full bg-[#E7F5EE] items-center justify-center mr-2.5">
+                <MaterialIcons name="picture-as-pdf" size={18} color="#2A5C43" />
+              </View>
+              <View>
+                <Text className="text-base font-black text-[#2A5C43]">
+                  Print PDF & Reports
+                </Text>
+                <Text className="text-gray-500 text-xs">
+                  Export statements for custom periods
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <Text className="text-xs font-bold text-gray-700 mt-2 mb-2">
+            Select Report Type:
+          </Text>
+          <View className="flex-row gap-2 mb-3">
+            {[
+              { id: "comprehensive", label: "Comprehensive" },
+              { id: "payouts", label: "Payments" },
+              { id: "yields", label: "Harvest Logs" },
+            ].map((tab) => {
+              const active = reportType === tab.id;
+              return (
+                <TouchableOpacity
+                  key={tab.id}
+                  onPress={() => setReportType(tab.id as any)}
+                  style={{
+                    backgroundColor: active ? "#2A5C43" : "#F3F4F6",
+                    borderColor: active ? "#2A5C43" : "#E5E7EB",
+                  }}
+                  className="flex-1 py-2 px-2 rounded-xl border items-center justify-center"
+                >
+                  <Text
+                    style={{ color: active ? "#FFFFFF" : "#4B5563" }}
+                    className="text-xs font-bold text-center"
+                  >
+                    {tab.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <Text className="text-xs font-bold text-gray-700 mb-1">
+            Filter Period:
+          </Text>
+          <PeriodSelector
+            selectedPeriod={reportPeriod}
+            onPeriodChange={setReportPeriod}
+            accentColor="#2A5C43"
+          />
+
+          <TouchableOpacity
+            onPress={handleExportPDF}
+            disabled={exportingReport}
+            style={{ backgroundColor: "#2A5C43" }}
+            className="w-full py-3 rounded-xl flex-row items-center justify-center shadow-xs mt-1"
+          >
+            <MaterialIcons name="print" size={18} color="#FFFFFF" />
+            <Text className="text-white font-black text-sm ml-2">
+              {exportingReport ? "Generating PDF..." : "Export / Print PDF"}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <Text className="text-xl font-black text-[#2A5C43] mb-3">

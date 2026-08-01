@@ -198,25 +198,22 @@ export default function BuyerTrack() {
                 {(() => {
                   const isPaid =
                     order.status === "Paid" ||
-                    order.payment_status === "Verified";
+                    order.payment_status === "Verified" ||
+                    Boolean(order.tracking_location) ||
+                    ["Picked Up", "In Transit", "Ready for Pickup", "Fulfilled", "Dispatched", "Delivered"].includes(order.status);
+
+                  const isInTransit =
+                    Boolean(order.tracking_location) ||
+                    ["Picked Up", "In Transit", "Ready for Pickup", "Fulfilled", "Dispatched", "Delivered"].includes(order.status);
+
+                  const isDelivered =
+                    ["Ready for Pickup", "Fulfilled", "Delivered"].includes(order.status);
+
                   const steps = [
                     { label: "Order Booked", active: true },
                     { label: "Payment Verified", active: isPaid },
-                    {
-                      label: "In Transit",
-                      active: [
-                        "Picked Up",
-                        "In Transit",
-                        "Ready for Pickup",
-                        "Fulfilled",
-                      ].includes(order.status),
-                    },
-                    {
-                      label: "Ready / Delivered",
-                      active: ["Ready for Pickup", "Fulfilled"].includes(
-                        order.status,
-                      ),
-                    },
+                    { label: "In Transit", active: isInTransit },
+                    { label: "Ready / Delivered", active: isDelivered },
                   ];
                   return (
                     <View className="pl-2">
