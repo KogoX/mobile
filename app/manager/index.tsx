@@ -23,7 +23,7 @@ import { getSessionUser } from "../../lib/session";
 import NotificationBell from "../../components/NotificationBell";
 import { Toast, shortHash } from "../../components/Toast";
 import PeriodSelector, { PeriodFilter } from "../../components/PeriodSelector";
-import { generateAndSharePDF } from "../../lib/pdfReport";
+import { generateAndSharePDF, openPdfPreviewWindow } from "../../lib/pdfReport";
 
 type Farmer = {
   id: string;
@@ -97,10 +97,38 @@ export default function ManagerDashboard() {
 
   const handleExportManagerReport = async () => {
     if (exportingReport) return;
+    const previewWindow = openPdfPreviewWindow(
+      "Preparing executive report...",
+      "Your PDF preview will open here in a moment.",
+    );
+
     setExportingReport(true);
     try {
-      const totalHarvestKg = yields.reduce((sum, y) => sum + (Number(y.quantity) || 0), 0);
-      const totalPaymentsKes = payments
+      let querySuffix = "";
+      const params: string[] = [];
+      if (period.startDate) params.push(`startDate=${period.startDate}`);
+      if (period.endDate) params.push(`endDate=${period.endDate}`);
+      if (params.length > 0) querySuffix = `?${params.join("&")}`;
+
+      const [reportYieldsRes, reportOrdersRes, reportPaymentsRes] =
+        await Promise.all([
+          api.get(`/yields${querySuffix}`),
+          api.get(`/orders${querySuffix}`),
+          api.get(`/payments${querySuffix}`),
+        ]);
+
+      const reportYields = Array.isArray(reportYieldsRes.data)
+        ? reportYieldsRes.data
+        : yields;
+      const reportOrders = Array.isArray(reportOrdersRes.data)
+        ? reportOrdersRes.data
+        : orders;
+      const reportPayments = Array.isArray(reportPaymentsRes.data)
+        ? reportPaymentsRes.data
+        : payments;
+
+      const totalHarvestKg = reportYields.reduce((sum, y) => sum + (Number(y.quantity) || 0), 0);
+      const totalPaymentsKes = reportPayments
         .filter((p) => p.status === "Verified")
         .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
@@ -109,16 +137,23 @@ export default function ManagerDashboard() {
         reportType: "manager_summary",
         userName: managerName || "Manager",
         periodLabel: period.label,
-        items: yields,
+        items: reportYields,
+        ordersItems: reportOrders,
+        paymentsItems: reportPayments,
         extraMetrics: {
           farmersCount: farmers.length,
           totalHarvestKg,
-          totalOrdersCount: orders.length,
+          totalOrdersCount: reportOrders.length,
           totalPaymentsKes,
         },
+        webPreviewWindow: previewWindow,
       });
       showToast("Executive Report generated", "success");
     } catch (e: any) {
+      if (previewWindow && !previewWindow.closed) {
+        previewWindow.document.body.innerHTML =
+          "<p style=\"font-family: Arial, sans-serif; color: #991B1B; padding: 24px;\">Unable to generate the executive report. Please try again.</p>";
+      }
       showToast(e.message || "Failed to generate report", "error");
     } finally {
       setExportingReport(false);

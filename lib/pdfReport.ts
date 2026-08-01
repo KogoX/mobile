@@ -13,6 +13,8 @@ interface GeneratePDFParams {
   items?: any[];
   yieldsItems?: any[];
   payoutsItems?: any[];
+  ordersItems?: any[];
+  paymentsItems?: any[];
   extraMetrics?: {
     farmersCount?: number;
     totalHarvestKg?: number;
@@ -20,6 +22,50 @@ interface GeneratePDFParams {
     totalPaymentsKes?: number;
     totalPayoutsKes?: number;
   };
+  webPreviewWindow?: Window | null;
+}
+
+export function openPdfPreviewWindow(title: string, message: string) {
+  if (Platform.OS !== "web" || typeof window === "undefined") {
+    return null;
+  }
+
+  const previewWindow = window.open("", "_blank");
+  if (!previewWindow) {
+    return null;
+  }
+
+  previewWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>${title}</title>
+        <style>
+          body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: Arial, sans-serif;
+            color: #125C3F;
+            background: #FCF9F8;
+          }
+          div { text-align: center; }
+          h1 { font-size: 20px; margin: 0 0 8px; }
+          p { margin: 0; color: #4B5563; }
+        </style>
+      </head>
+      <body>
+        <div>
+          <h1>${title}</h1>
+          <p>${message}</p>
+        </div>
+      </body>
+    </html>
+  `);
+  previewWindow.document.close();
+  return previewWindow;
 }
 
 export async function generateAndSharePDF({
@@ -31,7 +77,10 @@ export async function generateAndSharePDF({
   items = [],
   yieldsItems = [],
   payoutsItems = [],
+  ordersItems = [],
+  paymentsItems = [],
   extraMetrics,
+  webPreviewWindow,
 }: GeneratePDFParams) {
   const generatedAt = new Date().toLocaleString();
 
@@ -236,6 +285,11 @@ export async function generateAndSharePDF({
       </div>
     `;
   } else if (reportType === "manager_summary") {
+    const harvestList = items;
+    const orderList = ordersItems;
+    const paymentList = paymentsItems;
+    totalRecordsCount = harvestList.length + orderList.length + paymentList.length;
+
     const farmersCount = extraMetrics?.farmersCount || 0;
     const totalHarvestKg = extraMetrics?.totalHarvestKg || 0;
     const totalOrdersCount = extraMetrics?.totalOrdersCount || 0;
@@ -262,29 +316,111 @@ export async function generateAndSharePDF({
       </div>
     `;
 
-    tableHeadersHtml = `
-      <tr>
-        <th>Harvest ID</th>
-        <th>Farmer Name</th>
-        <th>Variety / Grade</th>
-        <th>Quantity (kg)</th>
-        <th>Status</th>
-        <th>Submitted Date</th>
-      </tr>
-    `;
+    const harvestRowsHtml = harvestList.length > 0
+      ? harvestList
+          .map((item, index) => `
+            <tr class="${index % 2 === 0 ? "even" : ""}">
+              <td>#${String(item.id).substring(0, 8)}</td>
+              <td><strong>${item.farmer || "Farmer"}</strong></td>
+              <td>${item.variety || "Avocado"} (Grade ${item.grade || "A"})</td>
+              <td style="font-weight: bold;">${Number(item.quantity || 0).toLocaleString()} kg</td>
+              <td><span class="badge ${String(item.status).toLowerCase()}">${item.status || "Pending"}</span></td>
+              <td>${new Date(item.created_at).toLocaleDateString()}</td>
+            </tr>
+          `)
+          .join("")
+      : `<tr><td colspan="6" style="text-align:center; padding: 15px; color: #9CA3AF;">No harvest records found for this period.</td></tr>`;
 
-    tableRowsHtml = items
-      .map((item, index) => `
-        <tr class="${index % 2 === 0 ? "even" : ""}">
-          <td>#${String(item.id).substring(0, 8)}</td>
-          <td><strong>${item.farmer || "Farmer"}</strong></td>
-          <td>${item.variety || "Avocado"} (Grade ${item.grade || "A"})</td>
-          <td style="font-weight: bold;">${Number(item.quantity).toLocaleString()} kg</td>
-          <td><span class="badge ${String(item.status).toLowerCase()}">${item.status || "Pending"}</span></td>
-          <td>${new Date(item.created_at).toLocaleDateString()}</td>
-        </tr>
-      `)
-      .join("");
+    const orderRowsHtml = orderList.length > 0
+      ? orderList
+          .map((item, index) => `
+            <tr class="${index % 2 === 0 ? "even" : ""}">
+              <td>#${String(item.id).substring(0, 8)}</td>
+              <td><strong>${item.buyer || "Buyer"}</strong></td>
+              <td>${item.produce || "Avocado"}</td>
+              <td>${Number(item.quantity || 0).toLocaleString()} kg</td>
+              <td style="font-weight: bold; color: #2A5C43;">KES ${Number(item.total_amount || 0).toLocaleString()}</td>
+              <td><span class="badge ${String(item.status).toLowerCase()}">${item.status || "Processing"}</span></td>
+              <td>${new Date(item.created_at).toLocaleDateString()}</td>
+            </tr>
+          `)
+          .join("")
+      : `<tr><td colspan="7" style="text-align:center; padding: 15px; color: #9CA3AF;">No buyer orders found for this period.</td></tr>`;
+
+    const paymentRowsHtml = paymentList.length > 0
+      ? paymentList
+          .map((item, index) => `
+            <tr class="${index % 2 === 0 ? "even" : ""}">
+              <td>#${String(item.id).substring(0, 8)}</td>
+              <td>${item.buyer || "Buyer"}</td>
+              <td>${item.farmer || "Unassigned"}</td>
+              <td style="font-weight: bold; color: #2A5C43;">KES ${Number(item.amount || 0).toLocaleString()}</td>
+              <td><span class="badge ${String(item.status).toLowerCase()}">${item.status || "Pending"}</span></td>
+              <td>${new Date(item.created_at).toLocaleDateString()}</td>
+            </tr>
+          `)
+          .join("")
+      : `<tr><td colspan="6" style="text-align:center; padding: 15px; color: #9CA3AF;">No payments found for this period.</td></tr>`;
+
+    customBodyContentHtml = `
+      <div style="margin-top: 16px; margin-bottom: 20px;">
+        <h3 style="font-size: 13px; font-weight: 800; color: #2A5C43; margin-bottom: 8px; border-bottom: 1px solid #E5E7EB; padding-bottom: 4px; letter-spacing: 0.5px;">
+          1. HARVEST OPERATIONS
+        </h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Harvest ID</th>
+              <th>Farmer</th>
+              <th>Variety / Grade</th>
+              <th>Quantity</th>
+              <th>Status</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>${harvestRowsHtml}</tbody>
+        </table>
+      </div>
+
+      <div style="margin-top: 20px; margin-bottom: 20px;">
+        <h3 style="font-size: 13px; font-weight: 800; color: #2A5C43; margin-bottom: 8px; border-bottom: 1px solid #E5E7EB; padding-bottom: 4px; letter-spacing: 0.5px;">
+          2. BUYER ORDERS
+        </h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Order Ref</th>
+              <th>Buyer</th>
+              <th>Produce</th>
+              <th>Quantity</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>${orderRowsHtml}</tbody>
+        </table>
+      </div>
+
+      <div style="margin-top: 20px; margin-bottom: 8px;">
+        <h3 style="font-size: 13px; font-weight: 800; color: #2A5C43; margin-bottom: 8px; border-bottom: 1px solid #E5E7EB; padding-bottom: 4px; letter-spacing: 0.5px;">
+          3. PAYMENTS
+        </h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Payment Ref</th>
+              <th>Buyer</th>
+              <th>Farmer</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>${paymentRowsHtml}</tbody>
+        </table>
+      </div>
+    `;
   } else if (reportType === "buyer_procurement") {
     const totalSpent = items.reduce((sum, item) => sum + (Number(item.total_amount) || 0), 0);
     const totalQty = items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
@@ -575,6 +711,14 @@ export async function generateAndSharePDF({
   if (Platform.OS === "web") {
     try {
       const { uri } = await Print.printToFileAsync({ html });
+      if (uri && webPreviewWindow && !webPreviewWindow.closed) {
+        webPreviewWindow.location.href = uri;
+        return;
+      }
+      if (uri && typeof window !== "undefined") {
+        const opened = window.open(uri, "_blank");
+        if (opened) return;
+      }
       if (uri && typeof document !== "undefined") {
         const link = document.createElement("a");
         link.href = uri;

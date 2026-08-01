@@ -4,8 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 import * as Linking from "expo-linking";
 import { useFocusEffect, useRouter } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -20,7 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { shortHash } from "../../components/Toast";
 import PaystackModal from "../../components/PaystackModal";
 import api, { clearApiCache, fetchWithCache } from "../../lib/api";
-import { generateAndSharePDF } from "../../lib/pdfReport";
+import { generateAndSharePDF, openPdfPreviewWindow } from "../../lib/pdfReport";
 import { getSessionUser } from "../../lib/session";
 
 type Order = {
@@ -74,6 +73,11 @@ export default function BuyerOrders() {
 
   const handleExportPDF = async () => {
     if (orders.length === 0 || exporting) return;
+    const previewWindow = openPdfPreviewWindow(
+      "Preparing buyer statement...",
+      "Your PDF preview will open here in a moment.",
+    );
+
     setExporting(true);
     try {
       await generateAndSharePDF({
@@ -83,9 +87,14 @@ export default function BuyerOrders() {
         userUniqueId: userUniqueId,
         periodLabel: "All Time",
         items: orders,
+        webPreviewWindow: previewWindow,
       });
     } catch (e) {
       console.warn("Buyer orders PDF error:", e);
+      if (previewWindow && !previewWindow.closed) {
+        previewWindow.document.body.innerHTML =
+          "<p style=\"font-family: Arial, sans-serif; color: #991B1B; padding: 24px;\">Unable to generate the buyer statement. Please try again.</p>";
+      }
     } finally {
       setExporting(false);
     }

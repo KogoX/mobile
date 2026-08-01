@@ -23,7 +23,7 @@ import { notifyNewListing } from "../../lib/notifications";
 import { getSessionUser } from "../../lib/session";
 import NotificationBell from "../../components/NotificationBell";
 import PeriodSelector, { PeriodFilter } from "../../components/PeriodSelector";
-import { generateAndSharePDF } from "../../lib/pdfReport";
+import { generateAndSharePDF, openPdfPreviewWindow } from "../../lib/pdfReport";
 
 type Listing = {
   id: string;
@@ -73,6 +73,11 @@ export default function BuyerDashboard() {
 
   const handleExportBuyerReport = async () => {
     if (exportingReport) return;
+    const previewWindow = openPdfPreviewWindow(
+      "Preparing buyer report...",
+      "Your PDF preview will open here in a moment.",
+    );
+
     setExportingReport(true);
     try {
       let queryUrl = "/orders";
@@ -88,10 +93,15 @@ export default function BuyerDashboard() {
         userName: buyerName || "Buyer",
         userUniqueId: uniqueId,
         periodLabel: period.label,
-        items: data || activeOrders,
+        items: Array.isArray(data) ? data : activeOrders,
+        webPreviewWindow: previewWindow,
       });
     } catch (e: any) {
       console.warn("Buyer report export error:", e);
+      if (previewWindow && !previewWindow.closed) {
+        previewWindow.document.body.innerHTML =
+          "<p style=\"font-family: Arial, sans-serif; color: #991B1B; padding: 24px;\">Unable to generate the buyer report. Please try again.</p>";
+      }
     } finally {
       setExportingReport(false);
     }
