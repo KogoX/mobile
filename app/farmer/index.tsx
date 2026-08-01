@@ -9,7 +9,7 @@ import api, { clearApiCache, fetchWithCache } from "../../lib/api";
 import { usePollingRefresh } from "../../lib/polling";
 import { getSessionUser } from "../../lib/session";
 import PeriodSelector, { PeriodFilter } from "../../components/PeriodSelector";
-import { generateAndSharePDF } from "../../lib/pdfReport";
+import { generateAndSharePDF, openPdfPreviewWindow } from "../../lib/pdfReport";
 
 type YieldItem = {
   id: string | number;
@@ -116,7 +116,7 @@ export default function FarmerDashboard() {
       setRefreshing(true);
       clearApiCache();
     }
-    const p1 = fetchWithCache("/auth/me")
+    const p1 = fetchWithCache("/auth/me", { preferCache: !isManual })
       .then((res) => {
         const profile = res.data as FarmerProfile;
         setName(profile.name || "Farmer");
@@ -124,33 +124,69 @@ export default function FarmerDashboard() {
       })
       .catch(console.error);
 
-    const p2 = fetchWithCache("/yields")
+    const p2 = fetchWithCache("/yields", {
+      preferCache: !isManual,
+      onFreshData: (data) => {
+        if (Array.isArray(data)) {
+          _inMemoryFarmerYields = data;
+          setYields(data);
+          AsyncStorage.setItem("farmer_yields_cache", JSON.stringify(data)).catch(() => {});
+        }
+      },
+    })
       .then((res) => {
-        setYields(res.data);
-        AsyncStorage.setItem(
-          "farmer_yields_cache",
-          JSON.stringify(res.data),
-        ).catch(() => {});
+        if (Array.isArray(res.data)) {
+          _inMemoryFarmerYields = res.data;
+          setYields(res.data);
+          AsyncStorage.setItem(
+            "farmer_yields_cache",
+            JSON.stringify(res.data),
+          ).catch(() => {});
+        }
       })
       .catch(console.error);
 
-    const p3 = fetchWithCache("/payouts")
+    const p3 = fetchWithCache("/payouts", {
+      preferCache: !isManual,
+      onFreshData: (data) => {
+        if (Array.isArray(data)) {
+          _inMemoryFarmerPayouts = data;
+          setPayouts(data);
+          AsyncStorage.setItem("farmer_payouts_cache", JSON.stringify(data)).catch(() => {});
+        }
+      },
+    })
       .then((res) => {
-        setPayouts(res.data);
-        AsyncStorage.setItem(
-          "farmer_payouts_cache",
-          JSON.stringify(res.data),
-        ).catch(() => {});
+        if (Array.isArray(res.data)) {
+          _inMemoryFarmerPayouts = res.data;
+          setPayouts(res.data);
+          AsyncStorage.setItem(
+            "farmer_payouts_cache",
+            JSON.stringify(res.data),
+          ).catch(() => {});
+        }
       })
       .catch(console.error);
 
-    const p4 = fetchWithCache("/orders")
+    const p4 = fetchWithCache("/orders", {
+      preferCache: !isManual,
+      onFreshData: (data) => {
+        if (Array.isArray(data)) {
+          _inMemoryFarmerOrders = data;
+          setOrders(data);
+          AsyncStorage.setItem("farmer_orders_cache", JSON.stringify(data)).catch(() => {});
+        }
+      },
+    })
       .then((res) => {
-        setOrders(res.data);
-        AsyncStorage.setItem(
-          "farmer_orders_cache",
-          JSON.stringify(res.data),
-        ).catch(() => {});
+        if (Array.isArray(res.data)) {
+          _inMemoryFarmerOrders = res.data;
+          setOrders(res.data);
+          AsyncStorage.setItem(
+            "farmer_orders_cache",
+            JSON.stringify(res.data),
+          ).catch(() => {});
+        }
       })
       .catch(console.error);
 
@@ -233,6 +269,11 @@ export default function FarmerDashboard() {
 
   const handleExportPDF = async () => {
     if (exportingReport) return;
+    const previewWindow = openPdfPreviewWindow(
+      "Preparing farmer report...",
+      "Your PDF preview will open here in a moment.",
+    );
+
     setExportingReport(true);
     try {
       let filteredYields = yields;
@@ -273,6 +314,7 @@ export default function FarmerDashboard() {
           periodLabel: reportPeriod.label,
           yieldsItems: filteredYields,
           payoutsItems: filteredPayouts,
+          webPreviewWindow: previewWindow,
         });
       } else if (reportType === "payouts") {
         await generateAndSharePDF({
@@ -282,6 +324,7 @@ export default function FarmerDashboard() {
           userUniqueId: uniqueId,
           periodLabel: reportPeriod.label,
           items: filteredPayouts,
+          webPreviewWindow: previewWindow,
         });
       } else {
         await generateAndSharePDF({
@@ -291,10 +334,15 @@ export default function FarmerDashboard() {
           userUniqueId: uniqueId,
           periodLabel: reportPeriod.label,
           items: filteredYields,
+          webPreviewWindow: previewWindow,
         });
       }
     } catch (e) {
       console.warn("Farmer PDF export error:", e);
+      if (previewWindow && !previewWindow.closed) {
+        previewWindow.document.body.innerHTML =
+          "<p style=\"font-family: Arial, sans-serif; color: #991B1B; padding: 24px;\">Unable to generate the farmer report. Please try again.</p>";
+      }
     } finally {
       setExportingReport(false);
     }

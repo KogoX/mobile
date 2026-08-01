@@ -129,18 +129,40 @@ export default function ManagerFarmers() {
       clearApiCache();
     }
     const [farmersRes, usersRes] = await Promise.allSettled([
-      fetchWithCache("/farmers"),
-      fetchWithCache("/auth/users"),
+      fetchWithCache("/farmers", {
+        preferCache: !isManual,
+        onFreshData: (data) => {
+          if (Array.isArray(data)) {
+            setFarmers(data);
+            AsyncStorage.setItem(
+              "manager_farmers_cache",
+              JSON.stringify(data),
+            ).catch(() => {});
+          }
+        },
+      }),
+      fetchWithCache("/auth/users", {
+        preferCache: !isManual,
+        onFreshData: (data) => {
+          if (Array.isArray(data)) {
+            setUsers(data);
+            AsyncStorage.setItem(
+              "manager_users_cache",
+              JSON.stringify(data),
+            ).catch(() => {});
+          }
+        },
+      }),
     ]);
 
-    if (farmersRes.status === "fulfilled") {
+    if (farmersRes.status === "fulfilled" && Array.isArray(farmersRes.value.data)) {
       setFarmers(farmersRes.value.data);
       AsyncStorage.setItem(
         "manager_farmers_cache",
         JSON.stringify(farmersRes.value.data),
       ).catch(() => {});
     }
-    if (usersRes.status === "fulfilled") {
+    if (usersRes.status === "fulfilled" && Array.isArray(usersRes.value.data)) {
       setUsers(usersRes.value.data);
       AsyncStorage.setItem(
         "manager_users_cache",

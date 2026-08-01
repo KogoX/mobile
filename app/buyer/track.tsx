@@ -6,7 +6,7 @@ import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 
-import api, { clearApiCache, fetchWithCache } from "../../lib/api";
+import { clearApiCache, fetchWithCache } from "../../lib/api";
 import { shortHash } from "../../components/Toast";
 
 type Order = {
@@ -49,7 +49,7 @@ export default function BuyerTrack() {
     if (isManual) setRefreshing(true);
     try {
       if (isManual) clearApiCache();
-      const res = await api.get("/orders");
+      const res = await fetchWithCache("/orders", { preferCache: !isManual });
       const data = res.data;
       if (Array.isArray(data)) {
         const trackable = data.filter(

@@ -68,7 +68,14 @@ export function peekCache<T = any>(url: string): T | null {
   return cached ? (cached.data as T) : null;
 }
 
-export async function fetchWithCache(url: string, options?: { preferCache?: boolean; forceRefresh?: boolean }) {
+export async function fetchWithCache(
+  url: string,
+  options?: {
+    preferCache?: boolean;
+    forceRefresh?: boolean;
+    onFreshData?: (data: any) => void;
+  },
+) {
   const cached = memoryCache.get(url);
 
   // If cached data exists and preferCache is set, return cached data immediately & revalidate in background
@@ -77,6 +84,7 @@ export async function fetchWithCache(url: string, options?: { preferCache?: bool
     api.get(url).then((res) => {
       if (res && res.data) {
         memoryCache.set(url, { data: res.data, timestamp: Date.now() });
+        options.onFreshData?.(res.data);
       }
     }).catch(() => {});
 

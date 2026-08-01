@@ -106,17 +106,39 @@ export default function ManagerOrders() {
     }
     try {
       const [yieldRes, orderRes] = await Promise.allSettled([
-        fetchWithCache("/yields"),
-        fetchWithCache("/orders"),
+        fetchWithCache("/yields", {
+          preferCache: !isManual,
+          onFreshData: (data) => {
+            if (Array.isArray(data)) {
+              setYields(data);
+              AsyncStorage.setItem(
+                "manager_yields_cache",
+                JSON.stringify(data),
+              ).catch(() => {});
+            }
+          },
+        }),
+        fetchWithCache("/orders", {
+          preferCache: !isManual,
+          onFreshData: (data) => {
+            if (Array.isArray(data)) {
+              setOrders(data);
+              AsyncStorage.setItem(
+                "manager_orders_cache",
+                JSON.stringify(data),
+              ).catch(() => {});
+            }
+          },
+        }),
       ]);
-      if (yieldRes.status === "fulfilled") {
+      if (yieldRes.status === "fulfilled" && Array.isArray(yieldRes.value.data)) {
         setYields(yieldRes.value.data);
         AsyncStorage.setItem(
           "manager_yields_cache",
           JSON.stringify(yieldRes.value.data),
         ).catch(() => {});
       }
-      if (orderRes.status === "fulfilled") {
+      if (orderRes.status === "fulfilled" && Array.isArray(orderRes.value.data)) {
         setOrders(orderRes.value.data);
         AsyncStorage.setItem(
           "manager_orders_cache",

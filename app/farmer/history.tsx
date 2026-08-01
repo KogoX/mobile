@@ -5,7 +5,7 @@ import { useCallback, useState } from "react";
 import { FlatList, RefreshControl, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import api, { clearApiCache, fetchWithCache, peekCache } from "../../lib/api";
+import { clearApiCache, fetchWithCache, peekCache } from "../../lib/api";
 import { useFocusRefresh } from "../../lib/polling";
 import { getSessionUser } from "../../lib/session";
 import { shortHash } from "../../components/Toast";
@@ -68,9 +68,21 @@ export default function FarmerHistory() {
         if (period.endDate) params.push(`endDate=${period.endDate}`);
         if (params.length > 0) queryUrl += `?${params.join("&")}`;
 
-        const { data } = await fetchWithCache(queryUrl, { preferCache: !isManual });
-        setYields(data);
-        if (period.preset === "all") {
+        const { data } = await fetchWithCache(queryUrl, {
+          preferCache: !isManual,
+          onFreshData: (freshData) => {
+            if (Array.isArray(freshData)) {
+              setYields(freshData);
+              if (period.preset === "all") {
+                AsyncStorage.setItem("farmer_yields_cache", JSON.stringify(freshData)).catch(() => {});
+              }
+            }
+          },
+        });
+        if (Array.isArray(data)) {
+          setYields(data);
+        }
+        if (Array.isArray(data) && period.preset === "all") {
           AsyncStorage.setItem("farmer_yields_cache", JSON.stringify(data)).catch(() => {});
         }
       } catch (err: any) {

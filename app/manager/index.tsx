@@ -213,7 +213,7 @@ export default function ManagerDashboard() {
       clearApiCache();
     }
 
-    fetchWithCache("/farmers")
+    fetchWithCache("/farmers", { preferCache: !isManual })
       .then((res) => {
         setFarmers(res.data);
         AsyncStorage.setItem(
@@ -223,7 +223,7 @@ export default function ManagerDashboard() {
       })
       .catch(console.error);
 
-    fetchWithCache("/yields")
+    fetchWithCache("/yields", { preferCache: !isManual })
       .then(async (res) => {
         const data = res.data;
         const previousRaw = await AsyncStorage.getItem(managerHarvestCountKey);
@@ -243,7 +243,7 @@ export default function ManagerDashboard() {
       })
       .catch(console.error);
 
-    fetchWithCache("/orders")
+    fetchWithCache("/orders", { preferCache: !isManual })
       .then((res) => {
         setOrders(res.data);
         AsyncStorage.setItem(
@@ -253,7 +253,7 @@ export default function ManagerDashboard() {
       })
       .catch(console.error);
 
-    fetchWithCache("/payments")
+    fetchWithCache("/payments", { preferCache: !isManual })
       .then((res) => {
         setPayments(res.data);
         AsyncStorage.setItem(

@@ -731,9 +731,25 @@ export async function generateAndSharePDF({
         return;
       }
     } catch (e) {
-      console.warn("Web PDF file download fallback to print dialog:", e);
+      console.warn("Web PDF file generation failed, opening HTML report fallback:", e);
     }
-    await Print.printAsync({ html });
+
+    if (webPreviewWindow && !webPreviewWindow.closed) {
+      webPreviewWindow.document.open();
+      webPreviewWindow.document.write(html);
+      webPreviewWindow.document.close();
+      return;
+    }
+
+    if (typeof window !== "undefined") {
+      const reportWindow = window.open("", "_blank");
+      if (reportWindow) {
+        reportWindow.document.write(html);
+        reportWindow.document.close();
+        return;
+      }
+    }
+
     return;
   }
 

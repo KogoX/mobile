@@ -170,7 +170,18 @@ export default function BuyerDashboard() {
         })
         .catch(console.error);
 
-      fetchWithCache("/orders")
+      fetchWithCache("/orders", {
+        preferCache: true,
+        onFreshData: (freshData) => {
+          if (Array.isArray(freshData)) {
+            setActiveOrders(
+              freshData.filter(
+                (o: any) => !["Fulfilled", "Cancelled"].includes(o.status),
+              ),
+            );
+          }
+        },
+      })
         .then((res) => {
           if (Array.isArray(res.data)) {
             setActiveOrders(
@@ -182,7 +193,36 @@ export default function BuyerDashboard() {
         })
         .catch(console.error);
 
-      fetchWithCache("/yields")
+      fetchWithCache("/yields", {
+        preferCache: true,
+        onFreshData: async (freshData) => {
+          if (Array.isArray(freshData)) {
+            const nextListings = freshData as Listing[];
+            const visible = nextListings.filter(
+              (item) => item.status === "Approved",
+            );
+            const previousRaw = await AsyncStorage.getItem(listingCountKey);
+            const previousCount = previousRaw
+              ? Number(previousRaw)
+              : visible.length;
+
+            if (visible.length > previousCount) {
+              await notifyNewListing(
+                "New avocado listing",
+                `${visible.length - previousCount} fresh harvest listing(s) are available.`,
+              );
+            }
+
+            await AsyncStorage.setItem(listingCountKey, String(visible.length));
+            _inMemoryMarketCache = nextListings;
+            setListings(nextListings);
+            AsyncStorage.setItem(
+              "buyer_market_cache",
+              JSON.stringify(nextListings),
+            ).catch(() => {});
+          }
+        },
+      })
         .then(async (res) => {
           if (Array.isArray(res.data)) {
             const nextListings = res.data as Listing[];

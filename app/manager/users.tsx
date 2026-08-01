@@ -88,11 +88,23 @@ export default function ManagerUsers() {
       clearApiCache();
     }
     try {
-      const { data } = await fetchWithCache("/auth/users");
-      setUsers(data);
-      AsyncStorage.setItem("manager_users_cache", JSON.stringify(data)).catch(
-        () => {},
-      );
+      const { data } = await fetchWithCache("/auth/users", {
+        preferCache: !isManual,
+        onFreshData: (freshData) => {
+          if (Array.isArray(freshData)) {
+            setUsers(freshData);
+            AsyncStorage.setItem("manager_users_cache", JSON.stringify(freshData)).catch(
+              () => {},
+            );
+          }
+        },
+      });
+      if (Array.isArray(data)) {
+        setUsers(data);
+        AsyncStorage.setItem("manager_users_cache", JSON.stringify(data)).catch(
+          () => {},
+        );
+      }
     } catch (error) {
       console.warn("Failed to load users:", error);
     } finally {

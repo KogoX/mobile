@@ -112,7 +112,7 @@ export default function BuyerOrders() {
     if (isManual) setRefreshing(true);
     try {
       if (isManual) clearApiCache();
-      const res = await api.get("/orders");
+      const res = await fetchWithCache("/orders", { preferCache: !isManual });
       const data = res.data;
       if (Array.isArray(data)) {
         _inMemoryOrdersCache = data;
