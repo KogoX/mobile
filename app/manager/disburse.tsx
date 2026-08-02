@@ -40,10 +40,32 @@ type Method = (typeof METHODS)[number];
 
 type ToastMsg = { text: string; type: "success" | "error" | "info" } | null;
 
+type UnpaidStock = {
+  order_id: number;
+  stock_unique_id: string;
+  yield_id?: number | null;
+  farmer_id: string;
+  farmer_name: string;
+  farmer_phone?: string | null;
+  produce: string;
+  grade: string;
+  quantity: number;
+  buyer_unit_price: number;
+  buyer_total_amount: number;
+  farmer_payout_rate: number;
+  farmer_payout_amount: number;
+  coop_margin_rate: number;
+  coop_retained_amount: number;
+  order_status: string;
+  order_date: string;
+};
+
 export default function ManagerDisburse() {
   const [farmers, setFarmers] = useState<Farmer[]>([]);
   const [payouts, setPayouts] = useState<Payout[]>([]);
+  const [unpaidStocks, setUnpaidStocks] = useState<UnpaidStock[]>([]);
   const [selectedFarmer, setSelectedFarmer] = useState<Farmer | null>(null);
+  const [selectedStock, setSelectedStock] = useState<UnpaidStock | null>(null);
   const [showFarmerPicker, setShowFarmerPicker] = useState(false);
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<Method>("mpesa");
@@ -80,9 +102,11 @@ export default function ManagerDisburse() {
     AsyncStorage.multiGet([
       "manager_farmers_cache",
       "manager_payouts_cache",
+      "manager_unpaid_stocks_cache",
     ]).then((stores) => {
       const fData = stores[0][1];
       const pData = stores[1][1];
+      const uData = stores[2][1];
       if (fData)
         try {
           setFarmers(JSON.parse(fData));
@@ -90,6 +114,10 @@ export default function ManagerDisburse() {
       if (pData)
         try {
           setPayouts(JSON.parse(pData));
+        } catch {}
+      if (uData)
+        try {
+          setUnpaidStocks(JSON.parse(uData));
         } catch {}
     });
   }, []);
@@ -107,9 +135,10 @@ export default function ManagerDisburse() {
       clearApiCache();
     }
     try {
-      const [farmersRes, payoutsRes] = await Promise.allSettled([
+      const [farmersRes, payoutsRes, stocksRes] = await Promise.allSettled([
         fetchWithCache("/farmers"),
         fetchWithCache("/payouts"),
+        fetchWithCache("/payouts/unpaid-stock"),
       ]);
       if (farmersRes.status === "fulfilled") {
         setFarmers(farmersRes.value.data);
@@ -125,6 +154,13 @@ export default function ManagerDisburse() {
           JSON.stringify(payoutsRes.value.data),
         ).catch(() => {});
       }
+      if (stocksRes.status === "fulfilled" && Array.isArray(stocksRes.value.data)) {
+        setUnpaidStocks(stocksRes.value.data);
+        AsyncStorage.setItem(
+          "manager_unpaid_stocks_cache",
+          JSON.stringify(stocksRes.value.data),
+        ).catch(() => {});
+      }
     } catch (error) {
       console.warn("Failed to load disburse items:", error);
     } finally {
@@ -138,6 +174,22 @@ export default function ManagerDisburse() {
     setSelectedFarmer(farmer);
     setPhone(farmer.phone ? farmer.phone.replace(/^\+\d+/, "") : "");
     setShowFarmerPicker(false);
+
+    // Auto-calculate payout from buyer paid stock
+    const matchingStocks = unpaidStocks.filter(
+      (s) => String(s.farmer_id) === String(farmer.id),
+    );
+    if (matchingStocks.length > 0) {
+      const primaryStock = matchingStocks[0];
+      setSelectedStock(primaryStock);
+      setAmount(String(primaryStock.farmer_payout_amount));
+      showToast(
+        `Auto-populated ${primaryStock.stock_unique_id}: KSh ${primaryStock.farmer_payout_amount.toLocaleString()}`,
+        "info",
+      );
+    } else {
+      setSelectedStock(null);
+    }
   }
 
   function toggleFarmerSelection(farmer: Farmer) {
@@ -146,10 +198,18 @@ export default function ManagerDisburse() {
       if (exists) {
         return prev.filter((id) => id !== farmer.id);
       } else {
+        const matchingStocks = unpaidStocks.filter(
+          (s) => String(s.farmer_id) === String(farmer.id),
+        );
+        const autoAmt =
+          matchingStocks.length > 0
+            ? String(matchingStocks[0].farmer_payout_amount)
+            : defaultBatchAmount;
+
         setBatchDetails((details) => ({
           ...details,
           [farmer.id]: {
-            amount: defaultBatchAmount,
+            amount: autoAmt,
             phone: farmer.phone ? farmer.phone.replace(/^\+\d+/, "") : "",
             bankCode: "",
             accountNumber: "",
@@ -220,6 +280,7 @@ export default function ManagerDisburse() {
       setSubmitting(true);
       await api.post("/payouts", {
         farmer_id: selectedFarmer.id,
+        order_id: selectedStock ? selectedStock.order_id : undefined,
         amount: Number(amount),
         method,
         phone:
@@ -452,6 +513,107 @@ export default function ManagerDisburse() {
               </Text>
               <MaterialIcons name="arrow-drop-down" size={20} color="#6b7280" />
             </Pressable>
+
+            {/* Auto-Calculated Paid Stock Breakdown Card */}
+            {selectedFarmer ? (
+              selectedStock ? (
+                <View className="bg-[#E7F5EE] border border-[#BDE3D0] rounded-2xl p-4 mb-4">
+                  <View className="flex-row justify-between items-start mb-2">
+                    <View className="flex-1 mr-2">
+                      <Text className="text-xs font-black text-[#2A5C43] uppercase tracking-wider">
+                        Auto-Calculated Stock Payout
+                      </Text>
+                      <Text className="text-sm font-black text-gray-900 mt-0.5">
+                        Stock Unique ID: {selectedStock.stock_unique_id}
+                      </Text>
+                    </View>
+                    <View className="bg-[#2A5C43] rounded-full px-2.5 py-1">
+                      <Text className="text-white text-[10px] font-black uppercase">
+                        Grade {selectedStock.grade}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View className="bg-white/90 rounded-xl p-3 gap-1.5 my-1 border border-[#2A5C43]/15">
+                    <View className="flex-row justify-between items-center">
+                      <Text className="text-xs text-gray-600 font-bold">Produce Variety:</Text>
+                      <Text className="text-xs font-black text-gray-900">{selectedStock.produce}</Text>
+                    </View>
+                    <View className="flex-row justify-between items-center">
+                      <Text className="text-xs text-gray-600 font-bold">Paid Stock Quantity:</Text>
+                      <Text className="text-xs font-black text-gray-900">{selectedStock.quantity.toLocaleString()} kg</Text>
+                    </View>
+                    <View className="flex-row justify-between items-center">
+                      <Text className="text-xs text-gray-600 font-bold">Buyer Paid Total:</Text>
+                      <Text className="text-xs font-black text-gray-900">
+                        KSh {selectedStock.buyer_total_amount.toLocaleString()} <Text className="text-[10px] text-gray-500 font-normal">(${(selectedStock.buyer_total_amount / 130).toFixed(2)})</Text>
+                      </Text>
+                    </View>
+                    <View className="flex-row justify-between items-center">
+                      <Text className="text-xs text-emerald-800 font-bold">Co-op Retained (Transport & Maint.):</Text>
+                      <Text className="text-xs font-black text-emerald-800">
+                        - KSh {selectedStock.coop_retained_amount.toLocaleString()} <Text className="text-[10px] text-emerald-700 font-normal">({selectedStock.coop_margin_rate} KSh/kg)</Text>
+                      </Text>
+                    </View>
+                    <View className="border-t border-gray-200 pt-2 flex-row justify-between items-center mt-1">
+                      <Text className="text-xs font-black text-[#2A5C43] uppercase">Net Farmer Payout:</Text>
+                      <Text className="text-base font-black text-[#2A5C43]">
+                        KSh {selectedStock.farmer_payout_amount.toLocaleString()} <Text className="text-xs text-[#2A5C43]/70 font-normal">(${(selectedStock.farmer_payout_amount / 130).toFixed(2)})</Text>
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text className="text-[11px] text-[#2A5C43]/80 font-bold mt-1">
+                    ✓ Calculated @ {selectedStock.farmer_payout_rate} KSh/kg for Grade {selectedStock.grade} stock
+                  </Text>
+
+                  {/* Multiple Unpaid Stock Selector for this Farmer */}
+                  {unpaidStocks.filter((s) => String(s.farmer_id) === String(selectedFarmer.id)).length > 1 && (
+                    <View className="mt-3 pt-2 border-t border-[#BDE3D0]">
+                      <Text className="text-[10px] font-black text-[#2A5C43] uppercase mb-1.5">
+                        Select Stock Order ({unpaidStocks.filter((s) => String(s.farmer_id) === String(selectedFarmer.id)).length} Paid Stocks)
+                      </Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row gap-2">
+                        {unpaidStocks
+                          .filter((s) => String(s.farmer_id) === String(selectedFarmer.id))
+                          .map((stk) => {
+                            const isChosen = selectedStock.order_id === stk.order_id;
+                            return (
+                              <Pressable
+                                key={stk.order_id}
+                                onPress={() => {
+                                  setSelectedStock(stk);
+                                  setAmount(String(stk.farmer_payout_amount));
+                                }}
+                                className={`px-3 py-1.5 rounded-lg border ${
+                                  isChosen
+                                    ? "bg-[#2A5C43] border-[#2A5C43]"
+                                    : "bg-white border-[#2A5C43]/30"
+                                }`}
+                              >
+                                <Text
+                                  className={`text-xs font-black ${
+                                    isChosen ? "text-white" : "text-[#2A5C43]"
+                                  }`}
+                                >
+                                  {stk.stock_unique_id} ({stk.quantity}kg)
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                      </ScrollView>
+                    </View>
+                  )}
+                </View>
+              ) : (
+                <View className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 flex-row items-center gap-2">
+                  <MaterialIcons name="info-outline" size={18} color="#b45309" />
+                  <Text className="text-amber-800 text-xs font-bold flex-1">
+                    No pending paid buyer stock found for {selectedFarmer.name}. You may enter an amount manually below.
+                  </Text>
+                </View>
+              )
+            ) : null}
 
             <TextInput
               className="bg-[#F9F9F9] border border-gray-200 rounded-xl px-4 py-3.5 mb-3 text-gray-800 font-bold"

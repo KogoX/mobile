@@ -67,6 +67,14 @@ type PaymentItem = {
   created_at: string;
 };
 
+type PayoutItem = {
+  id: string;
+  farmer_id: string;
+  amount: string;
+  status: string;
+  created_at: string;
+};
+
 type ToastMsg = { text: string; type: "success" | "error" | "info" } | null;
 
 const managerHarvestCountKey = "managerHarvestCount";
@@ -76,6 +84,7 @@ export default function ManagerDashboard() {
   const [yields, setYields] = useState<YieldItem[]>([]);
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const [payments, setPayments] = useState<PaymentItem[]>([]);
+  const [payouts, setPayouts] = useState<PayoutItem[]>([]);
   const [toast, setToast] = useState<ToastMsg>(null);
   const [updatingState, setUpdatingState] = useState<{
     id: string;
@@ -148,6 +157,7 @@ export default function ManagerDashboard() {
         },
         webPreviewWindow: previewWindow,
       });
+
       showToast("Executive Report generated", "success");
     } catch (e: any) {
       if (previewWindow && !previewWindow.closed) {
@@ -168,11 +178,13 @@ export default function ManagerDashboard() {
       "manager_yields_cache",
       "manager_orders_cache",
       "manager_payments_cache",
+      "manager_payouts_cache",
     ]).then((stores) => {
       const fData = stores[0][1];
       const yData = stores[1][1];
       const oData = stores[2][1];
       const pData = stores[3][1];
+      const poData = stores[4][1];
       if (fData)
         try {
           setFarmers(JSON.parse(fData));
@@ -188,6 +200,10 @@ export default function ManagerDashboard() {
       if (pData)
         try {
           setPayments(JSON.parse(pData));
+        } catch {}
+      if (poData)
+        try {
+          setPayouts(JSON.parse(poData));
         } catch {}
     });
   }, []);
@@ -261,6 +277,16 @@ export default function ManagerDashboard() {
           JSON.stringify(res.data),
         ).catch(() => {});
       })
+      .catch(console.error);
+
+    fetchWithCache("/payouts", { preferCache: !isManual })
+      .then((res) => {
+        setPayouts(res.data);
+        AsyncStorage.setItem(
+          "manager_payouts_cache",
+          JSON.stringify(res.data),
+        ).catch(() => {});
+      })
       .catch(console.error)
       .finally(() => setRefreshing(false));
   }, []);
@@ -278,8 +304,11 @@ export default function ManagerDashboard() {
         (item) => !["Paid", "Fulfilled", "Cancelled"].includes(item.status),
       )
       .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-    const paidAmount = payments
+    const buyerRevenue = payments
       .filter((item) => item.status === "Verified")
+      .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const farmerDisbursed = payouts
+      .filter((item) => item.status === "Paid")
       .reduce((sum, item) => sum + Number(item.amount || 0), 0);
     const pendingYields = yields.filter(
       (item) => item.status === "Logged",
@@ -291,12 +320,13 @@ export default function ManagerDashboard() {
     return {
       approvedSupply,
       openDemand,
-      paidAmount,
+      buyerRevenue,
+      farmerDisbursed,
       pendingYields,
       pendingOrders,
       balance: approvedSupply - openDemand,
     };
-  }, [orders, payments, yields]);
+  }, [orders, payments, payouts, yields]);
 
   type Activity = {
     id: string;
@@ -553,8 +583,15 @@ export default function ManagerDashboard() {
               icon="shopping-cart"
             />
             <Metric
-              label="Disbursed"
-              value={`KES ${totals.paidAmount.toLocaleString()}`}
+              label="Buyer Revenue"
+              value={`KSh ${totals.buyerRevenue.toLocaleString()}`}
+              usd={`($${(totals.buyerRevenue / 130).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`}
+              icon="account-balance-wallet"
+            />
+            <Metric
+              label="Farmer Disbursed"
+              value={`KSh ${totals.farmerDisbursed.toLocaleString()}`}
+              usd={`($${(totals.farmerDisbursed / 130).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`}
               icon="payments"
             />
           </View>
@@ -911,10 +948,12 @@ export default function ManagerDashboard() {
 function Metric({
   label,
   value,
+  usd,
   icon,
 }: {
   label: string;
   value: string;
+  usd?: string;
   icon: keyof typeof MaterialIcons.glyphMap;
 }) {
   return (
@@ -924,6 +963,9 @@ function Metric({
         {label}
       </Text>
       <Text className="text-[#2A5C43] text-xl font-black mt-1">{value}</Text>
+      {usd ? (
+        <Text className="text-xs text-gray-500 font-medium mt-0.5">{usd}</Text>
+      ) : null}
     </View>
   );
 }
