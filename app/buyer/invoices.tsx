@@ -116,12 +116,14 @@ export default function BuyerInvoices() {
         <View className="flex-row gap-3 mb-4">
           <Metric
             label="Paid"
-            value={`KES ${totals.paid.toLocaleString()}`}
+            value={`KSh ${totals.paid.toLocaleString()}`}
+            usd={`($${(totals.paid / 130).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`}
             icon="verified"
           />
           <Metric
             label="Outstanding"
-            value={`KES ${totals.unpaid.toLocaleString()}`}
+            value={`KSh ${totals.unpaid.toLocaleString()}`}
+            usd={`($${(totals.unpaid / 130).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`}
             icon="pending-actions"
           />
         </View>
@@ -160,6 +162,9 @@ export default function BuyerInvoices() {
           orders.map((order) => {
           const paid =
             order.status === "Paid" || order.payment_status === "Verified";
+          const unitPx = Number(order.unit_price || 0);
+          const totalPx = Number(order.total_amount || 0);
+
           return (
             <View
               key={order.id}
@@ -186,10 +191,10 @@ export default function BuyerInvoices() {
                 Quantity: {Number(order.quantity || 0).toLocaleString()} kg
               </Text>
               <Text className="text-gray-700">
-                Unit price: KES {Number(order.unit_price || 0).toLocaleString()}
+                Unit price: KSh {unitPx.toLocaleString()} <Text className="text-xs text-gray-500 font-medium">(${(unitPx / 130).toFixed(2)})</Text>
               </Text>
               <Text className="text-gray-900 font-black mt-1">
-                Total: KES {Number(order.total_amount || 0).toLocaleString()}
+                Total: KSh {totalPx.toLocaleString()} <Text className="text-xs text-gray-500 font-normal">(${(totalPx / 130).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</Text>
               </Text>
               <Text className="text-gray-500 mt-1">
                 {new Date(order.created_at).toLocaleDateString()}
@@ -205,10 +210,12 @@ export default function BuyerInvoices() {
 function Metric({
   label,
   value,
+  usd,
   icon,
 }: {
   label: string;
   value: string;
+  usd?: string;
   icon: keyof typeof MaterialIcons.glyphMap;
 }) {
   return (
@@ -217,7 +224,9 @@ function Metric({
       <Text className="text-[10px] text-gray-500 uppercase font-black mt-3">
         {label}
       </Text>
-      <Text className="text-[#2A5C43] text-lg font-black mt-1">{value}</Text>
+      <Text className="text-[#2A5C43] text-lg font-black mt-1">
+        {value} {usd ? <Text className="text-xs text-gray-500 font-medium">{usd}</Text> : null}
+      </Text>
     </View>
   );
 }

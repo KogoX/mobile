@@ -249,7 +249,7 @@ export default function BuyerOrders() {
                   Qty: {Number(order.quantity).toLocaleString()} kg
                 </Text>
                 <Text className="text-gray-700">
-                  Unit Price: KES {Number(order.unit_price).toLocaleString()}
+                  Unit Price: KSh {Number(order.unit_price).toLocaleString()} <Text className="text-xs text-gray-500 font-medium">(${(Number(order.unit_price) / 130).toFixed(2)})</Text>
                 </Text>
                 <Text className="text-gray-700">
                   Fulfillment:{" "}
@@ -257,8 +257,8 @@ export default function BuyerOrders() {
                     ? `${order.farmer} harvest #${order.yield_id ? shortHash(order.yield_id) : "unassigned"}`
                     : "Awaiting manager match"}
                 </Text>
-                <Text className="text-gray-900 font-bold mt-1">
-                  Total: KES {Number(order.total_amount).toLocaleString()}
+                <Text className="text-gray-900 font-black mt-1">
+                  Total: KSh {Number(order.total_amount).toLocaleString()} <Text className="text-xs text-gray-500 font-normal">(${(Number(order.total_amount) / 130).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</Text>
                 </Text>
                 <Text className="text-sm mt-1 text-gray-500">
                   Status:{" "}

@@ -86,17 +86,19 @@ export default function LogYield() {
       }
     }
 
+    const mediaTypes = ImagePicker.MediaTypeOptions?.Images || (ImagePicker as any).MediaType?.Images || "images";
+
     let result: ImagePicker.ImagePickerResult;
     if (useCamera) {
       result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes,
         quality: 0.6,
         cameraType: ImagePicker.CameraType.back,
       });
     } else {
       result = await ImagePicker.launchImageLibraryAsync({
         allowsMultipleSelection: true,
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes,
         quality: 0.6,
         selectionLimit: MAX_PHOTOS - photos.length,
       });

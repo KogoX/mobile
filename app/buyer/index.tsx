@@ -423,7 +423,7 @@ export default function BuyerDashboard() {
                     {getBuyerUnitPrice(grade).toLocaleString()}
                   </Text>
                   <Text className="text-[#D7F3E5] text-xs font-bold mt-1 uppercase">
-                    KES / kg
+                    KSh / kg <Text className="text-[10px] text-white/80 font-medium">(${(getBuyerUnitPrice(grade) / 130).toFixed(2)})</Text>
                   </Text>
                 </View>
               </View>
@@ -641,7 +641,7 @@ export default function BuyerDashboard() {
                   />
                   <InfoChip
                     label="Price"
-                    value="KES 1,200/kg"
+                    value={`KSh ${getBuyerUnitPrice(listing.grade)}/kg ($${(getBuyerUnitPrice(listing.grade) / 130).toFixed(2)})`}
                     dark={isFeatured}
                   />
                   <InfoChip
@@ -816,7 +816,7 @@ export default function BuyerDashboard() {
                   <DetailRow
                     icon="payments"
                     label="Unit Price"
-                    value={`KES ${getBuyerUnitPrice(selectedListing?.grade).toLocaleString()} / kg`}
+                    value={`KSh ${getBuyerUnitPrice(selectedListing?.grade).toLocaleString()} / kg ($${(getBuyerUnitPrice(selectedListing?.grade) / 130).toFixed(2)})`}
                   />
                   <DetailRow
                     icon="calendar-today"
@@ -895,13 +895,20 @@ export default function BuyerDashboard() {
                   <Text className="text-xs text-gray-500 font-bold uppercase mb-1">
                     Total Order Payable
                   </Text>
-                  <Text className="text-2xl font-black text-[#2A5C43]">
-                    KES ${(
-                      Number(quantity || 0) * getBuyerUnitPrice(selectedListing?.grade)
-                    ).toLocaleString()}
-                  </Text>
+                  <View className="flex-row items-baseline gap-2 flex-wrap">
+                    <Text className="text-2xl font-black text-[#2A5C43]">
+                      KSh {(
+                        Number(quantity || 0) * getBuyerUnitPrice(selectedListing?.grade)
+                      ).toLocaleString()}
+                    </Text>
+                    <Text className="text-sm font-medium text-[#2A5C43]/70">
+                      (${(
+                        (Number(quantity || 0) * getBuyerUnitPrice(selectedListing?.grade)) / 130
+                      ).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                    </Text>
+                  </View>
                   <Text className="text-xs text-[#2A5C43]/80 font-bold mt-1">
-                    {Number(quantity || 0).toLocaleString()} kg @ KES {getBuyerUnitPrice(selectedListing?.grade)} / kg
+                    {Number(quantity || 0).toLocaleString()} kg @ KSh {getBuyerUnitPrice(selectedListing?.grade)} / kg (${(getBuyerUnitPrice(selectedListing?.grade) / 130).toFixed(2)})
                   </Text>
                 </View>
 
@@ -917,12 +924,14 @@ export default function BuyerDashboard() {
                       : "bg-[#2A5C43]"
                   }`}
                 >
-                  <Text className="text-white font-black text-base">
+                  <Text className="text-white font-black text-base text-center px-2">
                     {creatingId === selectedListing?.id
                       ? "Placing Order..."
-                      : `Place Order — KES ${(
+                      : `Place Order — KSh ${(
                           Number(quantity || 0) * getBuyerUnitPrice(selectedListing?.grade)
-                        ).toLocaleString()}`}
+                        ).toLocaleString()} ($${(
+                          ((Number(quantity || 0) * getBuyerUnitPrice(selectedListing?.grade)) / 130)
+                        ).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`}
                   </Text>
                 </Pressable>
 
