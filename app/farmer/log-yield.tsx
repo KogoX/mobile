@@ -26,10 +26,11 @@ export default function LogYield() {
   const [quantity, setQuantity] = useState("");
   const [grade, setGrade] = useState("A");
   const [date, setDate] = useState(() => {
-    const today = new Date();
-    const day = String(today.getDate()).padStart(2, "0");
-    const month = String(today.getMonth() + 1).padStart(2, "0");
-    return `${day}/${month}/${today.getFullYear()}`;
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const day = String(tomorrow.getDate()).padStart(2, "0");
+    const month = String(tomorrow.getMonth() + 1).padStart(2, "0");
+    return `${day}/${month}/${tomorrow.getFullYear()}`;
   });
   const [photos, setPhotos] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -141,6 +142,18 @@ export default function LogYield() {
       setStatusMessage({
         type: "error",
         text: "Please enter a valid harvest quantity in kilograms.",
+      });
+      return;
+    }
+
+    const parsedDate = parseDDMMYYYY(date);
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    if (parsedDate && parsedDate < todayStart) {
+      setStatusMessage({
+        type: "error",
+        text: "Expected harvest date cannot be in the past. Perishable produce must be logged for today or upcoming future harvest dates.",
       });
       return;
     }
@@ -304,16 +317,18 @@ export default function LogYield() {
 
           <View className="mt-4">
             <Text className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2 ml-1">
-              Harvest Date
+              Expected Harvest Date (Upcoming)
             </Text>
 
             {/* Date Helper Quick-Pick Chips */}
             <View className="flex-row flex-wrap gap-1.5 mb-2">
               {[
+                { label: "Tomorrow", days: 1 },
+                { label: "2 Days to come", days: 2 },
+                { label: "3 Days to come", days: 3 },
+                { label: "5 Days to come", days: 5 },
+                { label: "1 Week to come", days: 7 },
                 { label: "Today", days: 0 },
-                { label: "Yesterday", days: -1 },
-                { label: "2 Days Ago", days: -2 },
-                { label: "3 Days Ago", days: -3 },
               ].map((chip) => {
                 const targetDate = new Date();
                 targetDate.setDate(targetDate.getDate() + chip.days);
@@ -434,4 +449,14 @@ function toApiDate(value: string) {
   const [day, month, year] = value.split("/");
   if (!day || !month || !year) return value;
   return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+}
+
+function parseDDMMYYYY(str: string): Date | null {
+  const parts = str.split("/");
+  if (parts.length !== 3) return null;
+  const day = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10) - 1;
+  const year = parseInt(parts[2], 10);
+  if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+  return new Date(year, month, day);
 }

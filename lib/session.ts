@@ -15,6 +15,9 @@ export type SessionUser = {
   phone?: string | null
   location?: string | null
   unique_id?: string | null
+  status?: string | null
+  verified?: boolean
+  is_super_admin?: boolean
 }
 
 export async function saveSession(token: string, user: SessionUser) {

@@ -68,6 +68,164 @@ export function openPdfPreviewWindow(title: string, message: string) {
   return previewWindow;
 }
 
+function getReportFileName(title: string) {
+  const cleanTitle = title.replace(/[^a-zA-Z0-9]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
+  const dateStr = new Date().toISOString().split("T")[0];
+  return `${cleanTitle || "CEMS_Report"}_${dateStr}.pdf`;
+}
+
+function writePdfPreviewWindow(previewWindow: Window, title: string, pdfUri: string) {
+  const fileName = getReportFileName(title);
+  previewWindow.document.open();
+  previewWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${title}</title>
+        <style>
+          html, body {
+            margin: 0;
+            height: 100%;
+            font-family: Arial, sans-serif;
+            background: #F3F4F6;
+            color: #111827;
+          }
+          .toolbar {
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 0 18px;
+            background: #FFFFFF;
+            border-bottom: 1px solid #D1D5DB;
+            box-sizing: border-box;
+          }
+          .title {
+            font-size: 15px;
+            font-weight: 800;
+            color: #2A5C43;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+          .actions {
+            display: flex;
+            gap: 10px;
+            flex: 0 0 auto;
+          }
+          .button {
+            appearance: none;
+            border: 0;
+            border-radius: 6px;
+            padding: 10px 14px;
+            font-size: 13px;
+            font-weight: 800;
+            text-decoration: none;
+            cursor: pointer;
+            background: #2A5C43;
+            color: #FFFFFF;
+          }
+          .button.secondary {
+            background: #E5E7EB;
+            color: #111827;
+          }
+          iframe {
+            width: 100%;
+            height: calc(100% - 56px);
+            border: 0;
+            background: #FFFFFF;
+          }
+          @media print {
+            .toolbar { display: none; }
+            iframe { height: 100vh; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="toolbar">
+          <div class="title">${title}</div>
+          <div class="actions">
+            <button class="button secondary" onclick="document.getElementById('pdfFrame').contentWindow.print()">Print</button>
+            <a class="button" href="${pdfUri}" download="${fileName}">Download PDF</a>
+          </div>
+        </div>
+        <iframe id="pdfFrame" src="${pdfUri}" title="${title}"></iframe>
+      </body>
+    </html>
+  `);
+  previewWindow.document.close();
+}
+
+function writeHtmlReportPreviewWindow(previewWindow: Window, title: string, html: string) {
+  const printScript = `
+    <script>
+      function downloadPdf() {
+        window.print();
+      }
+    </script>
+  `;
+  const toolbar = `
+    <style>
+      .preview-toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 10px 18px;
+        margin: -24px -24px 20px;
+        background: #FFFFFF;
+        border-bottom: 1px solid #D1D5DB;
+        font-family: Arial, sans-serif;
+      }
+      .preview-toolbar-title {
+        font-size: 15px;
+        font-weight: 800;
+        color: #2A5C43;
+      }
+      .preview-toolbar-actions {
+        display: flex;
+        gap: 10px;
+      }
+      .preview-toolbar button {
+        appearance: none;
+        border: 0;
+        border-radius: 6px;
+        padding: 10px 14px;
+        font-size: 13px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      .preview-toolbar .secondary {
+        background: #E5E7EB;
+        color: #111827;
+      }
+      .preview-toolbar .primary {
+        background: #2A5C43;
+        color: #FFFFFF;
+      }
+      @media print {
+        .preview-toolbar { display: none; }
+      }
+    </style>
+    <div class="preview-toolbar">
+      <div class="preview-toolbar-title">${title}</div>
+      <div class="preview-toolbar-actions">
+        <button class="secondary" onclick="window.print()">Print</button>
+        <button class="primary" onclick="downloadPdf()">Download PDF</button>
+      </div>
+    </div>
+  `;
+
+  previewWindow.document.open();
+  previewWindow.document.write(html.replace("</head>", `${printScript}</head>`).replace("<body>", `<body>${toolbar}`));
+  previewWindow.document.close();
+}
+
 export async function generateAndSharePDF({
   title,
   reportType,
@@ -712,19 +870,20 @@ export async function generateAndSharePDF({
     try {
       const { uri } = await Print.printToFileAsync({ html });
       if (uri && webPreviewWindow && !webPreviewWindow.closed) {
-        webPreviewWindow.location.href = uri;
+        writePdfPreviewWindow(webPreviewWindow, title, uri);
         return;
       }
       if (uri && typeof window !== "undefined") {
-        const opened = window.open(uri, "_blank");
-        if (opened) return;
+        const opened = window.open("", "_blank");
+        if (opened) {
+          writePdfPreviewWindow(opened, title, uri);
+          return;
+        }
       }
       if (uri && typeof document !== "undefined") {
         const link = document.createElement("a");
         link.href = uri;
-        const cleanTitle = title.replace(/[^a-zA-Z0-9]/g, "_");
-        const dateStr = new Date().toISOString().split("T")[0];
-        link.download = `${cleanTitle}_${dateStr}.pdf`;
+        link.download = getReportFileName(title);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -735,17 +894,14 @@ export async function generateAndSharePDF({
     }
 
     if (webPreviewWindow && !webPreviewWindow.closed) {
-      webPreviewWindow.document.open();
-      webPreviewWindow.document.write(html);
-      webPreviewWindow.document.close();
+      writeHtmlReportPreviewWindow(webPreviewWindow, title, html);
       return;
     }
 
     if (typeof window !== "undefined") {
       const reportWindow = window.open("", "_blank");
       if (reportWindow) {
-        reportWindow.document.write(html);
-        reportWindow.document.close();
+        writeHtmlReportPreviewWindow(reportWindow, title, html);
         return;
       }
     }

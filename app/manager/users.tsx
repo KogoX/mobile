@@ -18,7 +18,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import api, { clearApiCache, fetchWithCache } from "../../lib/api";
 import { useFocusRefresh } from "../../lib/polling";
 import { Toast } from "../../components/Toast";
-import type { Role } from "../../lib/session";
+import type { Role, SessionUser } from "../../lib/session";
 
 type User = {
   id: string;
@@ -31,6 +31,8 @@ type User = {
   created_at: string;
   unique_id?: string | null;
   payment_details?: string | null;
+  verified?: boolean;
+  is_super_admin?: boolean;
 };
 
 type ToastMsg = { text: string; type: "success" | "error" | "info" } | null;
@@ -39,16 +41,18 @@ const filters: Array<Role | "all"> = ["all", "farmer", "buyer", "manager"];
 
 export default function ManagerUsers() {
   const [users, setUsers] = useState<User[]>([]);
+  const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
   const [activeFilter, setActiveFilter] = useState<Role | "all">("all");
   const [query, setQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState<ToastMsg>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  // Register Farmer Modal state
+  // Register Modal state
   const [showCreate, setShowCreate] = useState(false);
+  const [createRole, setCreateRole] = useState<"farmer" | "manager">("farmer");
   const [creating, setCreating] = useState(false);
-  const [newFarmer, setNewFarmer] = useState({
+  const [newUser, setNewUser] = useState({
     name: "",
     email: "",
     phone: "",
@@ -67,12 +71,20 @@ export default function ManagerUsers() {
     });
   }, []);
 
+  const loadCurrentUser = useCallback(async () => {
+    try {
+      const { data } = await api.get("/auth/me");
+      setCurrentUser(data);
+    } catch {}
+  }, []);
+
   // Instant 0ms hydration on mount & tab focus
   useFocusEffect(
     useCallback(() => {
       loadFromCache();
+      loadCurrentUser();
       refresh();
-    }, [loadFromCache]),
+    }, [loadFromCache, loadCurrentUser]),
   );
 
   function showToast(
@@ -114,12 +126,12 @@ export default function ManagerUsers() {
 
   useFocusRefresh(refresh);
 
-  function updateNewFarmer(field: keyof typeof newFarmer, value: string) {
-    setNewFarmer((current) => ({ ...current, [field]: value }));
+  function updateNewUser(field: keyof typeof newUser, value: string) {
+    setNewUser((current) => ({ ...current, [field]: value }));
   }
 
   function resetCreateForm() {
-    setNewFarmer({
+    setNewUser({
       name: "",
       email: "",
       phone: "",
@@ -129,29 +141,45 @@ export default function ManagerUsers() {
     });
   }
 
-  async function createFarmer() {
-    if (!newFarmer.name.trim() || !newFarmer.password.trim()) {
+  async function handleRegisterUser() {
+    if (!newUser.name.trim() || !newUser.password.trim()) {
       showToast("Name and temporary password are required.", "error");
+      return;
+    }
+    if (createRole === "manager" && !newUser.email.trim()) {
+      showToast("Email address is required for manager registration.", "error");
       return;
     }
 
     setCreating(true);
     try {
-      const { data } = await api.post("/auth/farmers", {
-        name: newFarmer.name.trim(),
-        email: newFarmer.email.trim(),
-        phone: newFarmer.phone.trim(),
-        location: newFarmer.location.trim(),
-        payment_details: newFarmer.payment_details.trim(),
-        password: newFarmer.password,
-      });
+      const endpoint = createRole === "manager" ? "/auth/managers" : "/auth/farmers";
+      const payload = createRole === "manager"
+        ? {
+            name: newUser.name.trim(),
+            email: newUser.email.trim(),
+            phone: newUser.phone.trim(),
+            location: newUser.location.trim(),
+            password: newUser.password,
+          }
+        : {
+            name: newUser.name.trim(),
+            email: newUser.email.trim(),
+            phone: newUser.phone.trim(),
+            location: newUser.location.trim(),
+            payment_details: newUser.payment_details.trim(),
+            password: newUser.password,
+          };
+
+      const { data } = await api.post(endpoint, payload);
       setUsers((current) => [data, ...current]);
       setShowCreate(false);
       resetCreateForm();
-      showToast(`${data.name} registered successfully.`);
+      const roleLabel = createRole === "manager" ? "Manager" : "Farmer";
+      showToast(`${roleLabel} ${data.name} registered successfully.`);
       Alert.alert(
-        "Farmer Registered ✓",
-        `Login email: ${data.email}\nTemporary password: ${newFarmer.password}`,
+        `${roleLabel} Registered ✓`,
+        `Login email: ${data.email}\nTemporary password: ${newUser.password}`,
       );
       await refresh();
     } catch (err: any) {
@@ -167,29 +195,31 @@ export default function ManagerUsers() {
   }
 
   async function setStatus(user: User, status: string) {
+    const actionLabel =
+      status === "Active"
+        ? "Approve & Verify"
+        : status === "Suspended"
+          ? "Suspend"
+          : "Set Pending";
+
     Alert.alert(
       "Confirm Status Update",
-      `Set status for ${user.name} to ${status}?`,
+      `${actionLabel} for ${user.name} (${user.role})?`,
       [
         { text: "Cancel", style: "cancel" },
         {
-          text:
-            status === "Active"
-              ? "Verify"
-              : status === "Suspended"
-                ? "Suspend"
-                : "Set Pending",
+          text: actionLabel,
           style: status === "Suspended" ? "destructive" : "default",
           onPress: async () => {
             setUpdatingId(user.id);
             try {
-              await api.patch(`/auth/users/${user.id}/status`, { status });
+              const { data } = await api.patch(`/auth/users/${user.id}/status`, { status });
               setUsers((prev) =>
-                prev.map((u) => (u.id === user.id ? { ...u, status } : u)),
+                prev.map((u) => (u.id === user.id ? { ...u, status: data.status, verified: data.verified } : u)),
               );
               showToast(
                 status === "Active"
-                  ? `${user.name} verified`
+                  ? `${user.name} approved & verified`
                   : status === "Suspended"
                     ? `${user.name} suspended`
                     : `${user.name} set to pending`,
@@ -253,19 +283,28 @@ export default function ManagerUsers() {
           />
         }
       >
-        <Text className="text-3xl font-black text-[#2A5C43]">Users</Text>
-        <Text className="text-gray-500 mt-1 mb-4">
-          Registered accounts stored in the live database.
-        </Text>
+        <View className="flex-row items-center justify-between">
+          <View>
+            <Text className="text-3xl font-black text-[#2A5C43]">Users</Text>
+            <Text className="text-gray-500 mt-1 mb-4">
+              Registered accounts stored in the live database.
+            </Text>
+          </View>
+          {currentUser?.is_super_admin && (
+            <View className="bg-amber-100 border border-amber-300 rounded-full px-3 py-1 mb-4">
+              <Text className="text-amber-800 text-xs font-black">SUPER ADMIN</Text>
+            </View>
+          )}
+        </View>
 
-        {/* Register Farmer Quick Action Button */}
+        {/* Register Quick Action Button */}
         <Pressable
           onPress={() => setShowCreate(true)}
           className="bg-[#2A5C43] rounded-2xl px-4 py-3.5 mb-4 flex-row items-center justify-center gap-2 shadow-sm"
         >
           <MaterialIcons name="person-add" size={20} color="#ffffff" />
           <Text className="text-white font-black text-base">
-            Register New Farmer
+            {currentUser?.is_super_admin ? "Register User / Manager" : "Register New Farmer"}
           </Text>
         </Pressable>
 
@@ -318,80 +357,116 @@ export default function ManagerUsers() {
 
         {/* User Card List */}
         {filteredUsers.length ? (
-          filteredUsers.map((user) => (
-            <View
-              key={user.id}
-              className="bg-white rounded-2xl p-4 border border-gray-200 mb-3"
-            >
-              <View className="flex-row items-start justify-between gap-3">
-                <View className="flex-1">
-                  <Text className="text-lg font-black text-[#2A5C43]">
-                    {user.name}
-                  </Text>
-                  <Text className="text-gray-700 mt-0.5 font-medium">
-                    {user.email}
-                  </Text>
-                </View>
-                <View className="bg-[#E7F5EE] rounded-full px-3 py-1">
-                  <Text className="text-[#2A5C43] text-[11px] font-black uppercase">
-                    {user.role}
-                  </Text>
-                </View>
-              </View>
+          filteredUsers.map((user) => {
+            const isTargetSuperAdmin = Boolean(user.is_super_admin);
+            const isPendingManager = user.role === "manager" && user.status === "Pending";
+            const canManageStatus =
+              (user.role === "farmer") ||
+              (currentUser?.is_super_admin && user.role === "manager" && !isTargetSuperAdmin);
 
-              <View className="mt-3 gap-1">
-                {user.unique_id ? (
-                  <Detail icon="fingerprint" value={`ID: ${user.unique_id}`} />
-                ) : null}
-                <Detail icon="phone" value={user.phone || "No phone set"} />
-                <Detail
-                  icon="location-on"
-                  value={user.location || "No location set"}
-                />
-                <Detail
-                  icon="account-balance-wallet"
-                  value={user.payment_details || "No payment details"}
-                />
-                <Detail icon="verified-user" value={user.status || "Active"} />
-                <Detail
-                  icon="event"
-                  value={`Joined ${new Date(user.created_at).toLocaleDateString()}`}
-                />
-              </View>
-
-              {/* Status Action Buttons for Farmers */}
-              {user.role === "farmer" && (
-                <View className="flex-row gap-2 mt-4 pt-3 border-t border-gray-100">
-                  <Pressable
-                    disabled={
-                      updatingId === user.id || user.status === "Active"
+            return (
+              <View
+                key={user.id}
+                className="bg-white rounded-2xl p-4 border border-gray-200 mb-3"
+              >
+                <View className="flex-row items-start justify-between gap-3">
+                  <View className="flex-1">
+                    <View className="flex-row items-center gap-2">
+                      <Text className="text-lg font-black text-[#2A5C43]">
+                        {user.name}
+                      </Text>
+                      {isTargetSuperAdmin && (
+                        <View className="bg-amber-100 border border-amber-300 rounded-md px-1.5 py-0.5">
+                          <Text className="text-amber-800 text-[10px] font-black">SUPER ADMIN</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text className="text-gray-700 mt-0.5 font-medium">
+                      {user.email}
+                    </Text>
+                  </View>
+                  <View
+                    className={
+                      isTargetSuperAdmin
+                        ? "bg-amber-100 rounded-full px-3 py-1"
+                        : isPendingManager
+                          ? "bg-amber-50 border border-amber-200 rounded-full px-3 py-1"
+                          : "bg-[#E7F5EE] rounded-full px-3 py-1"
                     }
-                    onPress={() => setStatus(user, "Active")}
-                    className={`flex-1 py-2 rounded-xl items-center justify-center ${user.status === "Active" ? "bg-gray-100 border border-gray-200" : "bg-[#E7F5EE]"}`}
                   >
                     <Text
-                      className={`font-black text-xs ${user.status === "Active" ? "text-gray-400" : "text-[#2A5C43]"}`}
+                      className={
+                        isTargetSuperAdmin
+                          ? "text-amber-800 text-[11px] font-black uppercase"
+                          : isPendingManager
+                            ? "text-amber-700 text-[11px] font-black uppercase"
+                            : "text-[#2A5C43] text-[11px] font-black uppercase"
+                      }
                     >
-                      Verify
+                      {isPendingManager ? "Pending Manager" : user.role}
                     </Text>
-                  </Pressable>
-                  <Pressable
-                    disabled={
-                      updatingId === user.id || user.status === "Suspended"
-                    }
-                    onPress={() => setStatus(user, "Suspended")}
-                    className={`flex-1 py-2 rounded-xl items-center justify-center ${user.status === "Suspended" ? "bg-gray-100 border border-gray-200" : "bg-red-50"}`}
-                  >
-                    <Text
-                      className={`font-black text-xs ${user.status === "Suspended" ? "text-gray-400" : "text-red-700"}`}
-                    >
-                      Suspend
-                    </Text>
-                  </Pressable>
+                  </View>
                 </View>
-              )}
-            </View>
-          ))
+
+                <View className="mt-3 gap-1">
+                  {user.unique_id ? (
+                    <Detail icon="fingerprint" value={`ID: ${user.unique_id}`} />
+                  ) : null}
+                  <Detail icon="phone" value={user.phone || "No phone set"} />
+                  <Detail
+                    icon="location-on"
+                    value={user.location || "No location set"}
+                  />
+                  {user.role === "farmer" && (
+                    <Detail
+                      icon="account-balance-wallet"
+                      value={user.payment_details || "No payment details"}
+                    />
+                  )}
+                  <Detail
+                    icon="verified-user"
+                    value={`${user.status || "Active"}${user.verified ? " (Verified)" : ""}`}
+                  />
+                  <Detail
+                    icon="event"
+                    value={`Joined ${new Date(user.created_at).toLocaleDateString()}`}
+                  />
+                </View>
+
+                {/* Status Action Buttons */}
+                {canManageStatus && (
+                  <View className="flex-row gap-2 mt-4 pt-3 border-t border-gray-100">
+                    <Pressable
+                      disabled={
+                        updatingId === user.id || user.status === "Active"
+                      }
+                      onPress={() => setStatus(user, "Active")}
+                      className={`flex-1 py-2 rounded-xl items-center justify-center ${user.status === "Active" ? "bg-gray-100 border border-gray-200" : "bg-[#E7F5EE]"}`}
+                    >
+                      <Text
+                        className={`font-black text-xs ${user.status === "Active" ? "text-gray-400" : "text-[#2A5C43]"}`}
+                      >
+                        {user.role === "manager" ? "Approve Manager" : "Verify"}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      disabled={
+                        updatingId === user.id || user.status === "Suspended"
+                      }
+                      onPress={() => setStatus(user, "Suspended")}
+                      className={`flex-1 py-2 rounded-xl items-center justify-center ${user.status === "Suspended" ? "bg-gray-100 border border-gray-200" : "bg-red-50"}`}
+                    >
+                      <Text
+                        className={`font-black text-xs ${user.status === "Suspended" ? "text-gray-400" : "text-red-700"}`}
+                      >
+                        Suspend
+                      </Text>
+                    </Pressable>
+                  </View>
+                )}
+              </View>
+            );
+          })
         ) : (
           <View className="bg-white rounded-2xl p-4 border border-gray-200">
             <Text className="font-black text-[#2A5C43]">No users found</Text>
@@ -402,13 +477,13 @@ export default function ManagerUsers() {
         )}
       </ScrollView>
 
-      {/* Register Farmer Modal Form */}
+      {/* Register User Modal Form */}
       <Modal visible={showCreate} animationType="slide" transparent>
         <View className="flex-1 bg-black/50 justify-end">
           <View className="bg-white rounded-t-3xl p-5 max-h-[90%]">
             <View className="flex-row items-center justify-between mb-4">
               <Text className="text-2xl font-black text-[#2A5C43]">
-                Register New Farmer
+                {createRole === "manager" ? "Register New Manager" : "Register New Farmer"}
               </Text>
               <Pressable
                 onPress={() => {
@@ -420,27 +495,48 @@ export default function ManagerUsers() {
               </Pressable>
             </View>
 
+            {currentUser?.is_super_admin && (
+              <View className="flex-row bg-gray-100 rounded-xl p-1 mb-4">
+                <Pressable
+                  onPress={() => setCreateRole("farmer")}
+                  className={`flex-1 py-2 rounded-lg items-center ${createRole === "farmer" ? "bg-[#2A5C43]" : ""}`}
+                >
+                  <Text className={`font-bold text-sm ${createRole === "farmer" ? "text-white" : "text-gray-700"}`}>
+                    Farmer
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setCreateRole("manager")}
+                  className={`flex-1 py-2 rounded-lg items-center ${createRole === "manager" ? "bg-[#2A5C43]" : ""}`}
+                >
+                  <Text className={`font-bold text-sm ${createRole === "manager" ? "text-white" : "text-gray-700"}`}>
+                    Manager
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+
             <ScrollView className="space-y-3">
               <View>
                 <Text className="text-xs font-bold text-gray-500 mb-1">
                   Full Name *
                 </Text>
                 <TextInput
-                  value={newFarmer.name}
-                  onChangeText={(v) => updateNewFarmer("name", v)}
-                  placeholder="e.g. John Kamau"
+                  value={newUser.name}
+                  onChangeText={(v) => updateNewUser("name", v)}
+                  placeholder={createRole === "manager" ? "e.g. Sarah Mwangi" : "e.g. John Kamau"}
                   className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 font-medium text-gray-900"
                 />
               </View>
 
               <View className="mt-3">
                 <Text className="text-xs font-bold text-gray-500 mb-1">
-                  Email Address (Optional)
+                  Email Address {createRole === "manager" ? "*" : "(Optional)"}
                 </Text>
                 <TextInput
-                  value={newFarmer.email}
-                  onChangeText={(v) => updateNewFarmer("email", v)}
-                  placeholder="auto-generated if empty"
+                  value={newUser.email}
+                  onChangeText={(v) => updateNewUser("email", v)}
+                  placeholder={createRole === "manager" ? "manager@cems.com" : "auto-generated if empty"}
                   autoCapitalize="none"
                   keyboardType="email-address"
                   className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 font-medium text-gray-900"
@@ -449,11 +545,11 @@ export default function ManagerUsers() {
 
               <View className="mt-3">
                 <Text className="text-xs font-bold text-gray-500 mb-1">
-                  Phone Number (M-Pesa)
+                  Phone Number
                 </Text>
                 <TextInput
-                  value={newFarmer.phone}
-                  onChangeText={(v) => updateNewFarmer("phone", v)}
+                  value={newUser.phone}
+                  onChangeText={(v) => updateNewUser("phone", v)}
                   placeholder="e.g. 0712345678"
                   keyboardType="phone-pad"
                   className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 font-medium text-gray-900"
@@ -462,36 +558,38 @@ export default function ManagerUsers() {
 
               <View className="mt-3">
                 <Text className="text-xs font-bold text-gray-500 mb-1">
-                  Location / Farm Area
+                  Location / Region
                 </Text>
                 <TextInput
-                  value={newFarmer.location}
-                  onChangeText={(v) => updateNewFarmer("location", v)}
-                  placeholder="e.g. Murang'a South"
+                  value={newUser.location}
+                  onChangeText={(v) => updateNewUser("location", v)}
+                  placeholder="e.g. Nairobi / Murang'a"
                   className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 font-medium text-gray-900"
                 />
               </View>
 
-              <View className="mt-3">
-                <Text className="text-xs font-bold text-gray-500 mb-1">
-                  Payment Details (M-Pesa / Bank)
-                </Text>
-                <TextInput
-                  value={newFarmer.payment_details}
-                  onChangeText={(v) => updateNewFarmer("payment_details", v)}
-                  placeholder="e.g. M-Pesa 0712345678"
-                  className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 font-medium text-gray-900"
-                />
-              </View>
+              {createRole === "farmer" && (
+                <View className="mt-3">
+                  <Text className="text-xs font-bold text-gray-500 mb-1">
+                    Payment Details (M-Pesa / Bank)
+                  </Text>
+                  <TextInput
+                    value={newUser.payment_details}
+                    onChangeText={(v) => updateNewUser("payment_details", v)}
+                    placeholder="e.g. M-Pesa 0712345678"
+                    className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 font-medium text-gray-900"
+                  />
+                </View>
+              )}
 
               <View className="mt-3">
                 <Text className="text-xs font-bold text-gray-500 mb-1">
                   Temporary Password *
                 </Text>
                 <TextInput
-                  value={newFarmer.password}
-                  onChangeText={(v) => updateNewFarmer("password", v)}
-                  placeholder="e.g. Farmer123!"
+                  value={newUser.password}
+                  onChangeText={(v) => updateNewUser("password", v)}
+                  placeholder="e.g. SecurePass123!"
                   secureTextEntry
                   className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 font-medium text-gray-900"
                 />
@@ -499,7 +597,7 @@ export default function ManagerUsers() {
 
               <Pressable
                 disabled={creating}
-                onPress={createFarmer}
+                onPress={handleRegisterUser}
                 className="bg-[#2A5C43] rounded-xl py-4 mt-5 items-center justify-center flex-row gap-2"
               >
                 {creating ? (
@@ -512,7 +610,7 @@ export default function ManagerUsers() {
                       color="#ffffff"
                     />
                     <Text className="text-white font-black text-base">
-                      Complete Registration
+                      {createRole === "manager" ? "Register Manager Account" : "Complete Registration"}
                     </Text>
                   </>
                 )}

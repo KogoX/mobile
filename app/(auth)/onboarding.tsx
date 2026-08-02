@@ -69,6 +69,15 @@ export default function OnboardingScreen() {
         password,
         role
       })
+      if (data.pendingApproval) {
+        Alert.alert(
+          "Manager Account Pending Approval ✓",
+          data.message || "Your manager account has been registered and is pending approval by the Super Admin manager. You will be able to log in once approved.",
+          [{ text: "Go to Login", onPress: () => router.replace("/(auth)/login") }]
+        )
+        return
+      }
+
       await saveSession(data.token, data.user)
       router.replace(`/${data.user.role}`)
     } catch (error: any) {
