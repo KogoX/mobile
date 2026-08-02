@@ -39,11 +39,14 @@ export default function LoginScreen() {
 
   // Reset Password State
   const [showResetModal, setShowResetModal] = useState(false)
+  const [resetStep, setResetStep] = useState<1 | 2>(1)
   const [resetEmail, setResetEmail] = useState("")
+  const [resetCode, setResetCode] = useState("")
   const [resetNewPassword, setResetNewPassword] = useState("")
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [resetLoading, setResetLoading] = useState(false)
   const [resetError, setResetError] = useState("")
+  const [resetSuccessMsg, setResetSuccessMsg] = useState("")
   
   const isWide = width >= 760
 
@@ -51,9 +54,33 @@ export default function LoginScreen() {
     isBiometricSignInEnabled().then(setBiometricReady).catch(() => setBiometricReady(false))
   }, [])
 
+  const handleRequestResetCode = async () => {
+    if (!resetEmail.trim()) {
+      setResetError("Please enter your registered email address.")
+      return
+    }
+    setResetLoading(true)
+    setResetError("")
+    setResetSuccessMsg("")
+    try {
+      const { data } = await api.post("/auth/forgot-password", {
+        email: resetEmail.trim()
+      })
+      if (data.code) {
+        setResetCode(data.code)
+      }
+      setResetSuccessMsg(data.message || "Verification code sent to your email address.")
+      setResetStep(2)
+    } catch (err: any) {
+      setResetError(err?.response?.data?.error || err.message || "Failed to send verification code.")
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
   const handleResetPassword = async () => {
-    if (!resetEmail.trim() || !resetNewPassword.trim()) {
-      setResetError("Please enter both email and new password.")
+    if (!resetEmail.trim() || !resetCode.trim() || !resetNewPassword.trim()) {
+      setResetError("Please enter email, verification code, and new password.")
       return
     }
     if (resetNewPassword.trim().length < 6) {
@@ -66,13 +93,17 @@ export default function LoginScreen() {
     try {
       const { data } = await api.post("/auth/reset-password", {
         email: resetEmail.trim(),
+        code: resetCode.trim(),
         newPassword: resetNewPassword.trim()
       })
       setShowResetModal(false)
       setEmail(resetEmail.trim())
       setPassword(resetNewPassword.trim())
       setResetNewPassword("")
-      Alert.alert("Password Reset ✓", data.message || "Password updated. You can now sign in.")
+      setResetCode("")
+      setResetStep(1)
+      setResetSuccessMsg("")
+      Alert.alert("Password Reset ✓", data.message || "Password updated successfully. You can now sign in.")
     } catch (err: any) {
       setResetError(err?.response?.data?.error || err.message || "Password reset failed.")
     } finally {
@@ -290,19 +321,23 @@ export default function LoginScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Password Reset Modal */}
+      {/* Secure Password Reset Modal */}
       <Modal visible={showResetModal} animationType="slide" transparent>
         <View className="flex-1 bg-black/60 justify-center items-center p-4">
           <View className="bg-white rounded-3xl p-6 w-full max-w-md shadow-xl">
             <View className="flex-row justify-between items-center mb-4">
               <View className="flex-row items-center gap-2">
                 <MaterialIcons name="lock-reset" size={26} color="#2A5C43" />
-                <Text className="text-xl font-black text-[#2A5C43]">Reset Password</Text>
+                <Text className="text-xl font-black text-[#2A5C43]">
+                  {resetStep === 1 ? "Reset Password" : "Enter Verification Code"}
+                </Text>
               </View>
               <Pressable
                 onPress={() => {
                   setShowResetModal(false);
                   setResetError("");
+                  setResetSuccessMsg("");
+                  setResetStep(1);
                 }}
               >
                 <MaterialIcons name="close" size={24} color="#6B7280" />
@@ -310,11 +345,23 @@ export default function LoginScreen() {
             </View>
 
             <Text className="text-gray-600 mb-4 text-sm font-medium">
-              Enter your account email address and choose a new password.
+              {resetStep === 1
+                ? "Enter your account email address. A 6-digit verification code will be sent to authorize password reset."
+                : "Enter the 6-digit verification code sent to your email along with your new password."}
             </Text>
 
+            {resetSuccessMsg ? (
+              <View className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-3 flex-row items-center gap-2">
+                <MaterialIcons name="check-circle" size={18} color="#059669" />
+                <Text className="text-emerald-800 text-xs font-bold flex-1">{resetSuccessMsg}</Text>
+              </View>
+            ) : null}
+
             {resetError ? (
-              <Text className="text-red-500 text-sm mb-3 font-medium">{resetError}</Text>
+              <View className="bg-red-50 border border-red-200 rounded-xl p-3 mb-3 flex-row items-center gap-2">
+                <MaterialIcons name="error-outline" size={18} color="#dc2626" />
+                <Text className="text-red-700 text-xs font-bold flex-1">{resetError}</Text>
+              </View>
             ) : null}
 
             <Field
@@ -326,28 +373,64 @@ export default function LoginScreen() {
               onChangeText={setResetEmail}
             />
 
-            <Field
-              label="New Password"
-              icon="lock-outline"
-              placeholder="Enter new password (min 6 chars)"
-              secureTextEntry={!showNewPassword}
-              showToggle
-              onToggleShow={() => setShowNewPassword((v) => !v)}
-              isVisible={showNewPassword}
-              value={resetNewPassword}
-              onChangeText={setResetNewPassword}
-            />
+            {resetStep === 2 ? (
+              <>
+                <Field
+                  label="6-Digit Verification Code"
+                  icon="verified-user"
+                  placeholder="Enter 6-digit code"
+                  value={resetCode}
+                  onChangeText={setResetCode}
+                />
 
-            <Pressable
-              disabled={resetLoading}
-              onPress={handleResetPassword}
-              className="bg-[#2A5C43] rounded-xl py-3.5 mt-4 items-center justify-center flex-row gap-2 shadow-md active:opacity-80"
-            >
-              {resetLoading ? <ActivityIndicator color="#ffffff" style={{ marginRight: 6 }} /> : null}
-              <Text className="text-white font-bold text-base">
-                {resetLoading ? "Updating..." : "Reset Password"}
-              </Text>
-            </Pressable>
+                <Field
+                  label="New Password"
+                  icon="lock-outline"
+                  placeholder="Enter new password (min 6 chars)"
+                  secureTextEntry={!showNewPassword}
+                  showToggle
+                  onToggleShow={() => setShowNewPassword((v) => !v)}
+                  isVisible={showNewPassword}
+                  value={resetNewPassword}
+                  onChangeText={setResetNewPassword}
+                />
+              </>
+            ) : null}
+
+            {resetStep === 1 ? (
+              <Pressable
+                disabled={resetLoading}
+                onPress={handleRequestResetCode}
+                className="bg-[#2A5C43] rounded-xl py-3.5 mt-4 items-center justify-center flex-row gap-2 shadow-md active:opacity-80"
+              >
+                {resetLoading ? <ActivityIndicator color="#ffffff" style={{ marginRight: 6 }} /> : null}
+                <Text className="text-white font-bold text-base">
+                  {resetLoading ? "Sending..." : "Send Verification Code"}
+                </Text>
+              </Pressable>
+            ) : (
+              <View className="gap-2 mt-4">
+                <Pressable
+                  disabled={resetLoading}
+                  onPress={handleResetPassword}
+                  className="bg-[#2A5C43] rounded-xl py-3.5 items-center justify-center flex-row gap-2 shadow-md active:opacity-80"
+                >
+                  {resetLoading ? <ActivityIndicator color="#ffffff" style={{ marginRight: 6 }} /> : null}
+                  <Text className="text-white font-bold text-base">
+                    {resetLoading ? "Updating..." : "Verify & Reset Password"}
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => setResetStep(1)}
+                  className="py-2 items-center"
+                >
+                  <Text className="text-gray-500 font-bold text-xs">
+                    ← Change Email / Request New Code
+                  </Text>
+                </Pressable>
+              </View>
+            )}
           </View>
         </View>
       </Modal>
