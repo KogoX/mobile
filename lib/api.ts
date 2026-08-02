@@ -26,7 +26,7 @@ console.log(`[api] backend base URL resolved to: ${apiBase}`)
 
 const api = axios.create({
   baseURL: `${apiBase}/api`,
-  timeout: 15000,
+  timeout: 60000,
 });
 
 let cachedToken: string | null | undefined;

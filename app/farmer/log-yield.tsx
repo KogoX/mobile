@@ -140,6 +140,8 @@ export default function LogYield() {
   }
 
   const handleSubmit = async () => {
+    if (loading) return;
+
     if (!quantity) {
       setStatusMessage({
         type: "error",
